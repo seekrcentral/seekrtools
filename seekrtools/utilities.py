@@ -1,7 +1,7 @@
 """
 utilities.py
-Seekrtools is a python library layer that interfaces with SEEKR tools such as 
-OpenMMVT and provides a number of useful utilities and extensions.
+Seekrtools is a python library layer that interfaces with SEEKR programs such as 
+SEEKR2 and provides a number of useful utilities and extensions.
 
 This script provides a number of potentially useful functions and objects when
 running OpenMM and OpenMM simulations
@@ -10,7 +10,8 @@ running OpenMM and OpenMM simulations
 import xml.etree.ElementTree as ET
 from xml.dom import minidom
 
-from simtk.unit import nanometer, Quantity
+#from simtk.unit import nanometer, Quantity
+import simtk.unit as unit
 
 def serialize_box_vectors(box_vectors, to_file=''):
     """
@@ -34,7 +35,7 @@ def serialize_box_vectors(box_vectors, to_file=''):
     """
     assert box_vectors is not None
     xmlBox_vectors = ET.Element('box_vectors')
-    box_vectors_unitless = box_vectors.value_in_unit(nanometer)
+    box_vectors_unitless = box_vectors.value_in_unit(unit.nanometer)
     xmlA = ET.SubElement(xmlBox_vectors, 'A')
     xmlAx = ET.SubElement(xmlA, 'x')
     xmlAx.text = str(box_vectors_unitless[0][0])
@@ -108,10 +109,10 @@ def deserialize_box_vectors(xmlInput, is_file=True):
     xmlCx = float(xmlC.find('x').text)
     xmlCy = float(xmlC.find('y').text)
     xmlCz = float(xmlC.find('z').text)
-    box_vectors = Quantity([[xmlAx, xmlAy, xmlAz], 
+    box_vectors = unit.Quantity([[xmlAx, xmlAy, xmlAz], 
                                  [xmlBx, xmlBy, xmlBz],
                                  [xmlCx, xmlCy, xmlCz]], 
-                                 unit=nanometer)
+                                 unit=unit.nanometer)
     return box_vectors
 
 if __name__ == "__main__":
