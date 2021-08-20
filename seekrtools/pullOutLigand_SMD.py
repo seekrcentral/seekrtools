@@ -152,7 +152,7 @@ if trajectory_filename and trajectory_interval:
 start_radius = get_lig_rec_distance(parmed_struct, mypdb.positions, lig_indices, rec_indices)
 print("start_radius:", start_radius)
 start_window = start_radius
-last_window = target_radii[-1] + 1.0
+last_window = target_radii[-1] + 0.1
 increment = (last_window - start_window)/num_windows
 print("simulating steered MD in windows from", start_window, "to", last_window, 
     "in increments of", increment)
