@@ -99,7 +99,7 @@ You can optionally change ``trajectory_filename = "smd_trajectory.pdb"``
 if you want the trajectory file from the SMD simulation to have a different 
 name.
 
-The setting ``trajectory_interval = 100000`` tells the interval of steps
+The setting ``trajectory_interval = 500000`` tells the interval of steps
 between when the trajectory file should be updated.
 
 Leave ``total_num_steps = 50000000`` as it is, since this will be an SMD 

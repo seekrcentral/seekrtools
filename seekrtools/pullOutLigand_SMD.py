@@ -167,10 +167,10 @@ for i, window_radius in enumerate(windows):
         break
     goal_radius = target_radii[goal_radius_index]
     assert goal_radius > start_radius, "Error: your system is starting with "\
-        "a ligand-receptor distance of %f, but a target radius is "\
-        "listed at a distance of %f. This may never be reached. Please choose "\
-        "a list of target radii that are larger than the starting ligand-"\
-        "receptor distance."
+        "a ligand-receptor distance of %f, but a target " % start_radius \
+        +"radius is listed at a distance of %f. This may " % goal_radius \
+        +"never be reached. Please choose a list of target radii that are "\
+        "larger than the starting ligand-receptor distance."
     old_distance = distance
     distance, positions = run_window(window_radius, state_filename, i)
     print("current ligand-receptor distance:", distance)

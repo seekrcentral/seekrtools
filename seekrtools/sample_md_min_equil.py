@@ -49,6 +49,8 @@ steps_per_trajectory_update = 300000
 
 # Final structure output
 output_pdb_file = "equilibrated.pdb"
+inpcrd_final = "equilibrated.rst7"
+prmtop_final = "equilibrated.parm7"
 
 # Whether to minimize
 minimize = True
@@ -98,18 +100,22 @@ cuda_index = "0"
 # Nonbonded cutoff
 nonbonded_cutoff = 0.9 * unit.nanometer
 
+starting_ligand_site_distance = get_site_ligand_distance(
+    input_pdb_file, rec_indices, lig_indices)
+print("Starting ligand-site distance:", starting_ligand_site_distance)
+
+# Modify target_distance if you want the ligand to be pulled to a different
+# distance. For example:
+# target_distance = 0.6 * unit.nanometers
+target_distance = starting_ligand_site_distance
+
 ########################################################
 # DO NOT MODIFY BELOW UNLESS YOU KNOW WHAT YOU'RE DOING
 ########################################################
 
-target_distance = get_site_ligand_distance(input_pdb_file, rec_indices, 
-                                           lig_indices)
-
-print("Starting ligand-site distance:", target_distance)
-
 tmp_prmtop_filename = "molecule_TMP.parm7"
 tmp_inpcrd_filename = "molecule_TMP.rst7"
-inpcrd_final = "equilibrated.rst7"
+
 
 # parmed can process the prmtop/inpcrd to get ready for OpenMM
 amber_parm = parmed.amber.AmberParm(prmtop_filename, inpcrd_filename)
@@ -162,6 +168,7 @@ positions = state.getPositions()
 amber_parm = parmed.amber.AmberParm(prmtop_filename, inpcrd_filename)
 amber_parm.positions = positions
 amber_parm.box_vectors = state.getPeriodicBoxVectors()
+amber_parm.save(prmtop_final, overwrite=True)
 amber_parm.save(inpcrd_final, overwrite=True)
 amber_parm.save(output_pdb_file, overwrite=True)
 
