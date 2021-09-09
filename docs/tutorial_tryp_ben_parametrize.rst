@@ -98,18 +98,13 @@ benzamidine.
    
    Figure 2: Benzamidine
 
-Antechamber requires a *CIF* file to parametrize the small molecule. Return to
-the PDB page at https://www.rcsb.org/structure/3PTB for the trypsin/benzamidine 
-system, and scroll down until you see the "Small Molecules" section. Click 
-"Download Ideal Coordinates CCD File".
+Antechamber requires a structure file to parametrize the small molecule. In 
+this case, we will use a PDB file of just the benzamidine.
 
-.. figure:: media/tutorial_tryp_ben_cif.png
-   :align:  center
+Download :download:`ben.pdb <media/ben.pdb>`.
    
-   Figure 3: Download the CIF file.
-   
-Save BEN.cif somewhere on your hard drive. This molecule contains optimized
-molecular geometries and missing hydrogens.
+Save ben.pdb somewhere on your hard drive. This molecule contains optimized
+molecular geometries.
 
 Next, see if you have Antechamber::
 
@@ -118,15 +113,15 @@ Next, see if you have Antechamber::
 If this returns a path, you should be good. Otherwise, you'll need to install 
 AmberTools. If antechamber exists on your computer, run the following command::
 
-  antechamber -i BEN.cif -fi ccif -bk BEN -o benz.mol2 -fo mol2 -c bcc -nc 1
+  antechamber -i ben.pdb -fi pdb -bk BEN -o benz.mol2 -fo mol2 -c bcc -nc 1
 
 Each argument means the following information:
 
-**-i BEN.cif** - Take the BEN.cif file as input.
+**-i ben.pdb** - Take the ben.pdb file as input.
 
-**-fi ccif** - The format of BEN.cif is in ccif (CIF) format.
+**-fi pdb** - The format of ben.pdb is in PDB format.
 
-**-bk BEN** - The component/block ID for benzamidine in the CIF file is "BEN".
+**-bk BEN** - The component/block ID for benzamidine in the PDB file is "BEN".
 
 **-o benz.mol2** - Specify output file name of benzamidine molecule.
 

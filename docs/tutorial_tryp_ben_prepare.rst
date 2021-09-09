@@ -11,7 +11,7 @@ This tutorial requires OpenMM and AmberTools to be installed and ready to run.
 .. figure:: media/tutorial_tryp_ben_crystal_structure.png
    :align:  center
    
-   The crystal structure of benzamidine bound to the trypsin protein.
+   A structure of benzamidine bound to the trypsin protein.
 
 
 .. toctree::
