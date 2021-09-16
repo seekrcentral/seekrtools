@@ -12,7 +12,10 @@ import argparse
 import tempfile
 import glob
 
-import openmm.unit as unit
+try:
+    import openmm.unit as unit
+except ImportError:
+    import simtk.unit as unit
 import seekr2.modules.common_base as base
 import seekr2.modules.common_prepare as common_prepare
 import seekr2.modules.check as check

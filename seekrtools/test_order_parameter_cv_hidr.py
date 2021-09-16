@@ -4,7 +4,10 @@ Run a test of the order parameter CV.
 
 import os
 
-import openmm.unit as unit
+try:
+    import openmm.unit as unit
+except ImportError:
+    import simtk.unit as unit
 import seekr2.modules.common_base as base
 import seekr2.modules.common_prepare as common_prepare
 import seekr2.modules.common_cv as common_cv

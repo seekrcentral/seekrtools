@@ -6,7 +6,10 @@ import os
 import pytest
 
 import numpy as np
-import openmm.unit as unit
+try:
+    import openmm.unit as unit
+except ImportError:
+    import simtk.unit as unit
 
 import seekrtools.hidr.hidr_network as hidr_network
 
