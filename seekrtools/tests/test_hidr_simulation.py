@@ -6,7 +6,10 @@ import os
 import pytest
 
 import numpy as np
-import openmm.unit as unit
+try:
+    import openmm.unit as unit
+except ImportError:
+    import simtk.unit as unit
 import seekr2.modules.common_sim_openmm as common_sim_openmm
 
 import seekrtools.hidr.hidr_simulation as hidr_simulation

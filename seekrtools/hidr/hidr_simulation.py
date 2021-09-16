@@ -10,10 +10,18 @@ from copy import deepcopy
 
 import numpy as np
 import parmed
-import openmm.app as openmm_app
-import openmm
-import openmm.unit as unit
-import seekr2.modules.common_base as base
+
+try:
+    import openmm.unit as unit
+    import openmm.app as openmm_app
+    import openmm
+    
+except ImportError:
+    import simtk.unit as unit
+    import simtk.openmm.app as openmm_app
+    import simtk.openmm
+
+mport seekr2.modules.common_base as base
 import seekr2.modules.common_sim_openmm as common_sim_openmm
 
 import seekrtools.hidr.hidr_base as hidr_base

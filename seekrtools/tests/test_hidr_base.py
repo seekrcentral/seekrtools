@@ -25,7 +25,7 @@ def test_find_destinations(host_guest_mmvt_model):
         hidr_base.find_anchors_with_starting_structure(host_guest_mmvt_model)
     result1 = hidr_base.find_destinations(
         model, destination_str, anchors_with_starting_structures)
-    assert result1 == [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]
+    assert result1 == [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
     
     destination_str="1"
     result2 = hidr_base.find_destinations(
