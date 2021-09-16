@@ -21,7 +21,7 @@ def host_guest_mmvt_model_input_persistent(tmpdir_factory):
     rootdir = tmpdir_factory.mktemp("hostguest_mmvt")
     host_guest_mmvt_model_input_persisent_obj \
         = create_model_input.create_host_guest_mmvt_model_input(
-            rootdir, bd=True)
+            rootdir, bd=False)
     for input_anchor in host_guest_mmvt_model_input_persisent_obj\
             .cv_inputs[0].input_anchors[1:]:
         if input_anchor.starting_amber_params is not None:
