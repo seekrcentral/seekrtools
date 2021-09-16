@@ -12,14 +12,17 @@ import numpy as np
 import parmed
 
 try:
-    import openmm.unit as unit
     import openmm.app as openmm_app
     import openmm
     
 except ImportError:
-    import simtk.unit as unit
     import simtk.openmm.app as openmm_app
     import simtk.openmm
+
+try:
+    import openmm.unit as unit
+except ModuleNotFoundError:
+    import simtk.unit as unit
 
 import seekr2.modules.common_base as base
 import seekr2.modules.common_sim_openmm as common_sim_openmm

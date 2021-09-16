@@ -8,7 +8,7 @@ import pytest
 import numpy as np
 try:
     import openmm.unit as unit
-except ImportError:
+except ModuleNotFoundError:
     import simtk.unit as unit
 
 import seekrtools.hidr.hidr_network as hidr_network

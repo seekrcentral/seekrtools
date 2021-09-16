@@ -14,7 +14,7 @@ import glob
 
 try:
     import openmm.unit as unit
-except ImportError:
+except ModuleNotFoundError:
     import simtk.unit as unit
 import seekr2.modules.common_base as base
 import seekr2.modules.common_prepare as common_prepare

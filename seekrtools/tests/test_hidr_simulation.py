@@ -8,7 +8,7 @@ import pytest
 import numpy as np
 try:
     import openmm.unit as unit
-except ImportError:
+except ModuleNotFoundError:
     import simtk.unit as unit
 import seekr2.modules.common_sim_openmm as common_sim_openmm
 
