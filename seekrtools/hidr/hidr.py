@@ -19,7 +19,6 @@ except ModuleNotFoundError:
 import seekr2.modules.common_base as base
 import seekr2.modules.common_prepare as common_prepare
 import seekr2.modules.check as check
-import argcomplete
 
 import seekrtools.hidr.hidr_base as hidr_base
 import seekrtools.hidr.hidr_network as hidr_network

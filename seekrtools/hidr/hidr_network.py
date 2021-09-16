@@ -5,7 +5,10 @@ anchors.
 """
 
 import numpy as np
-import openmm.unit as unit
+try:
+    import openmm.unit as unit
+except ModuleNotFoundError:
+    import simtk.unit as unit
 
 def find_edge_distance(model, src_anchor_index, dest_anchor_index):
     """
