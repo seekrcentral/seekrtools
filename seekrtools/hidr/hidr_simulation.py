@@ -17,7 +17,7 @@ try:
     
 except ImportError:
     import simtk.openmm.app as openmm_app
-    import simtk.openmm
+    import simtk.openmm as openmm
 
 try:
     import openmm.unit as unit
