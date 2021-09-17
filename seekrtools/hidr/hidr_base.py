@@ -211,8 +211,16 @@ def assign_pdb_file_to_model(model, pdb_file):
         
         if between_milestones:
             # Then this is the correct anchor
+            anchor_building_dir = os.path.join(
+                model.anchor_rootdir, anchor.directory, 
+                anchor.building_directory)
+            pdb_base = os.path.basename(pdb_file)
+            new_pdb_filename = os.path.join(anchor_building_dir, 
+                                            pdb_base)
+            copyfile(os.path.expanduser(pdb_file), new_pdb_filename)
             print("Assigning pdb file {} to anchor {}".format(
                 pdb_file, anchor.index))
-            change_anchor_pdb_filename(anchor, pdb_file)
+            change_anchor_pdb_filename(anchor, pdb_base)
+            
             break
     return

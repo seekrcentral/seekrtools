@@ -69,8 +69,7 @@ def create_host_guest_mmvt_bond_order_CV_model_input(
                      "/home/lvotapka/seekr2/seekr2/data/hostguest_files/hostguest_at12.5.pdb",
                      ""]
     """
-    pdb_filenames = ["/home/lvotapka/seekr2/seekr2/data/hostguest_files/hostguest_at0.5.pdb",
-                     "", "", "", "", "", "", "", "", "", "", "", "", ""]
+    pdb_filenames = ["", "", "", "", "", "", "", "", "", "", "", "", "", ""]
     for i, (value, pdb_filename) in enumerate(zip(values_list, pdb_filenames)):
         input_anchor = common_cv.Tiwary_cv_anchor()
         input_anchor.value = value
@@ -164,6 +163,9 @@ if __name__ == "__main__":
     check.check_pre_simulation_all(model)
     #hidr.hidr(model, "any", dry_run=False, equilibration_steps=1000,  
     #     translation_velocity=1.0*unit.nanometers/unit.nanoseconds)
-    hidr.hidr(model, "any", dry_run=False, equilibration_steps=1000,  
-         translation_velocity=1.0*unit.nanometers/unit.nanoseconds)
+    hidr.hidr(
+        model, "any", 
+        pdb_files=["/home/lvotapka/seekr2/seekr2/data/hostguest_files/hostguest_at0.5.pdb"], 
+        dry_run=False, equilibration_steps=1000,  
+        translation_velocity=1.0*unit.nanometers/unit.nanoseconds)
     
