@@ -50,8 +50,8 @@ def host_guest_mmvt_model_persistent(tmpdir_factory,
     """
     os.chdir(TEST_DIRECTORY)
     host_guest_mmvt_model_obj, model_xml_path \
-        = prepare.generate_seekr2_model_and_filetree(
-            host_guest_mmvt_model_input_persistent, force_overwrite=False)
+        = prepare.prepare(host_guest_mmvt_model_input_persistent, 
+                          force_overwrite=False)
     model_dir = os.path.dirname(model_xml_path)
     host_guest_mmvt_model_obj.anchor_rootdir = os.path.abspath(model_dir)
     return host_guest_mmvt_model_obj

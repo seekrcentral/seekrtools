@@ -321,7 +321,7 @@ def run_min_equil_anchor(model, anchor_index, equilibration_steps,
     parm.box_vectors = state.getPeriodicBoxVectors()
     parm.save(output_pdb_file, overwrite=True)
     
-    hidr_base.change_anchor_box_vectors(anchor, box_vectors)
+    hidr_base.change_anchor_box_vectors(anchor, state.getPeriodicBoxVectors())
     hidr_base.change_anchor_pdb_filename(anchor, EQUILIBRATED_NAME)
 
     simulation_in_ns = total_number_of_steps * time_step.value_in_unit(
