@@ -185,6 +185,34 @@ def change_anchor_pdb_filename(anchor, new_pdb_filename):
         
     return
 
+def change_anchor_box_vectors(anchor, new_box_vectors):
+    """
+    Reassign an anchor's starting box vectors.
+    
+    Parameters
+    ----------
+    anchor : Anchor()
+        For a given Anchor object, assign new box vectors into the proper 
+        field, depending on whether the input parameters are Amber, 
+        Charmm, etc.
+    """
+    if new_box_vectors is None:
+        box_vectors = new_box_vectors
+    else:
+        box_vectors = base.Box_vectors()
+        box_vectors.from_quantity(new_box_vectors)
+        
+    if anchor.amber_params is not None:
+        anchor.amber_params.box_vectors = box_vectors
+    
+    if anchor.forcefield_params is not None:
+        anchor.forcefield_params.box_vectors = box_vectors
+        
+    if anchor.charmm_params is not None:
+        anchor.charmm_params.box_vectors = box_vectors
+        
+    return
+
 def assign_pdb_file_to_model(model, pdb_file):
     """
     Given a pdb file, assign it to an anchor where it fits between the 

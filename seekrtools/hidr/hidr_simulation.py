@@ -321,6 +321,7 @@ def run_min_equil_anchor(model, anchor_index, equilibration_steps,
     parm.box_vectors = state.getPeriodicBoxVectors()
     parm.save(output_pdb_file, overwrite=True)
     
+    hidr_base.change_anchor_box_vectors(anchor, box_vectors)
     hidr_base.change_anchor_pdb_filename(anchor, EQUILIBRATED_NAME)
 
     simulation_in_ns = total_number_of_steps * time_step.value_in_unit(
@@ -439,8 +440,8 @@ def run_SMD_simulation(model, source_anchor_index, destination_anchor_index,
         if os.path.exists(dest_prmtop_filename):
             os.remove(dest_prmtop_filename)
         copyfile(src_prmtop_filename, dest_prmtop_filename)
-        destination_anchor.amber_params.box_vectors = base.Box_vectors()
-        destination_anchor.amber_params.box_vectors.from_quantity(box_vectors)
+        #destination_anchor.amber_params.box_vectors = base.Box_vectors()
+        #destination_anchor.amber_params.box_vectors.from_quantity(box_vectors)
         
     destination_anchor.forcefield_params = deepcopy(source_anchor.forcefield_params)
     if destination_anchor.forcefield_params is not None:
@@ -450,6 +451,9 @@ def run_SMD_simulation(model, source_anchor_index, destination_anchor_index,
     if destination_anchor.charmm_params is not None:
         pass
         # TODO: more here for charmm
+    
+    hidr_base.change_anchor_box_vectors(
+        destination_anchor, box_vectors)
     
     hidr_base.change_anchor_pdb_filename(
         destination_anchor, hidr_output_pdb_name)

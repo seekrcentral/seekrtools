@@ -209,7 +209,6 @@ if __name__ == "__main__":
         "value is not supplied, the value in the MODEL_FILE will be used by "\
         "default.", type=str)
     
-    argcomplete.autocomplete(argparser)
     args = argparser.parse_args() # parse the args into a dictionary
     args = vars(args)
     destination = args["destination"]

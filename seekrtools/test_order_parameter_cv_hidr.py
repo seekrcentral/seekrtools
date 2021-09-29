@@ -49,7 +49,7 @@ def create_host_guest_mmvt_bond_order_CV_model_input(
     cv_input1.input_anchors = []
     
     values_list = [0.05, 0.15, 0.25, 0.35, 0.45, 0.55, 0.65, 0.75, 0.85, 0.95,
-                   1.05, 1.15, 1.25, 1.35]
+                   1.05]
     amber_prmtop_filename = "/home/lvotapka/seekr2/seekr2/data/hostguest_files/hostguest.parm7"
     forcefield_built_in_ff_list = ["amber14/tip3pfb.xml"]
     forcefield_custom_ff_list = ["../data/hostguest_files/hostguest.xml"]
@@ -95,9 +95,30 @@ def create_host_guest_mmvt_bond_order_CV_model_input(
     
         cv_input1.input_anchors.append(input_anchor)
     
-    model_input.cv_inputs = [cv_input1]
     
-    model_input.cv_inputs[0].input_anchors[-1].bulk_anchor = True
+    
+    cv_input2 = common_cv.Spherical_cv_input()
+    cv_input2.group1 = list(range(147))
+    cv_input2.group2 = list(range(147, 162))
+    cv_input2.input_anchors = []
+    
+    input_anchor1 = common_cv.Spherical_cv_anchor()
+    input_anchor1.radius = 1.25
+    input_anchor1.bound_state = False
+    input_anchor1.bulk_anchor = False
+    input_anchor1.connection_flags = [1]
+    cv_input2.input_anchors.append(input_anchor1)
+    
+    input_anchor2 = common_cv.Spherical_cv_anchor()
+    input_anchor2.radius = 1.35
+    input_anchor2.bound_state = False
+    input_anchor2.bulk_anchor = True
+    cv_input2.input_anchors.append(input_anchor2)
+    
+    model_input.cv_inputs = [cv_input1, cv_input2]
+    
+    #model_input.cv_inputs[1].input_anchors[-1].bulk_anchor = True
+    model_input.cv_inputs[0].input_anchors[-1].connection_flags = [1]
     
     if bd:
         model_input.browndye_settings_input \
@@ -156,8 +177,7 @@ if __name__ == "__main__":
     
     model_input = create_host_guest_mmvt_bond_order_CV_model_input(
         root_dir, order_parameters, order_parameter_weights, bd=False)
-    model, xml_path = prepare.generate_seekr2_model_and_filetree(
-        model_input, force_overwrite=True)
+    model, xml_path = prepare.prepare(model_input, force_overwrite=True)
     model_dir = os.path.dirname(xml_path)
     model.anchor_rootdir = os.path.abspath(model_dir)
     check.check_pre_simulation_all(model)

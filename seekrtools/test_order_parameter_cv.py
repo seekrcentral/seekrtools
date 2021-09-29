@@ -150,8 +150,7 @@ if __name__ == "__main__":
     
     model_input = create_host_guest_mmvt_bond_order_CV_model_input(
         root_dir, order_parameters, order_parameter_weights, bd=False)
-    model, xml_path = prepare.generate_seekr2_model_and_filetree(
-        model_input, force_overwrite=True)
+    model, xml_path = prepare.prepare(model_input, force_overwrite=True)
     model_dir = os.path.dirname(xml_path)
     model.anchor_rootdir = os.path.abspath(model_dir)
     run.run(model, "0")
