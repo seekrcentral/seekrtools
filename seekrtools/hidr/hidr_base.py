@@ -136,7 +136,7 @@ def check_destinations(model, anchors_with_starting_structures,
         "with a starting structure."
     return relevant_starting_anchor_indices
         
-def save_new_model(model):
+def save_new_model(model, save_old_model=True):
     """
     At the end of a HIDR calculation, generate a new model file. The
     old model file(s) will be renamed with a numerical index.
@@ -149,7 +149,7 @@ def save_new_model(model):
         
     """
     model_path = os.path.join(model.anchor_rootdir, "model.xml")
-    if os.path.exists(model_path):
+    if os.path.exists(model_path) and save_old_model:
         # This is expected, because this old model was loaded
         hidr_model_glob = os.path.join(model.anchor_rootdir, HIDR_MODEL_GLOB)
         num_globs = len(glob.glob(hidr_model_glob))

@@ -135,6 +135,7 @@ def hidr(model, destination, pdb_files=[], dry_run=False, equilibration_steps=0,
             
             print("Performance:", ns_per_day, "ns per day")
     
+    hidr_base.save_new_model(model)
     # Run the recipe of SMD instructions
     for step in procedure:
         source_anchor_index = step[0]
@@ -145,9 +146,9 @@ def hidr(model, destination, pdb_files=[], dry_run=False, equilibration_steps=0,
             model, source_anchor_index, destination_anchor_index, 
             restraint_force_constant, translation_velocity)
     
-    # save the new model file and check the generated structures
+        # save the new model file and check the generated structures
+        hidr_base.save_new_model(model, save_old_model=False)
     
-    hidr_base.save_new_model(model)
     if not skip_checks:
         check.check_pre_simulation_all(model)
     return
