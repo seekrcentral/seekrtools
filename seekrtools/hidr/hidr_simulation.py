@@ -391,11 +391,11 @@ def run_SMD_simulation(model, source_anchor_index, destination_anchor_index,
     source_anchor = model.anchors[source_anchor_index]
     destination_anchor = model.anchors[destination_anchor_index]
     
+    print("source_anchor.variables:", source_anchor.variables)
+    print("destination_anchor.variables:", destination_anchor.variables)
+    
     cv_id_list = []
     windows_list_unzipped = []
-    
-    # TODO: choose a better name for the output pdb - perhaps one that refers
-    #  to the variable values
     
     var_list = []
     for variable_key in source_anchor.variables:
@@ -406,21 +406,23 @@ def run_SMD_simulation(model, source_anchor_index, destination_anchor_index,
             start_value = source_anchor.variables[variable_key]
             last_value = destination_anchor.variables[variable_key]
             increment = (last_value - start_value)/NUM_WINDOWS
-            windows = np.arange(start_value, last_value+0.0001, increment)
+            windows = np.arange(start_value, last_value+0.0001*increment, 
+                                increment)
             windows_list_unzipped.append(windows)
             cv_id_list.append(var_cv)
         var_list.append("{:.3f}".format(last_value))
-    
+        
     var_string = "_".join(var_list)
     hidr_output_pdb_name = SMD_NAME.format(var_string)
     windows_list_zipped = zip(*windows_list_unzipped)
     
     timestep = get_timestep(model)
     distance = increment * unit.nanometers
-    steps_in_window = int(distance / (translation_velocity * timestep))
+    steps_in_window = int(abs(distance) / (translation_velocity * timestep))
+    assert steps_in_window > 0
     
     for i, window_values in enumerate(windows_list_zipped):
-        print("running_window:", window_values)
+        print("running_window:", window_values, "steps_in_window:", steps_in_window)
         system, topology, positions, box_vectors = run_window(
             model, source_anchor, restraint_force_constant, cv_id_list, 
             window_values, steps_in_window)
