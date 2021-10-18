@@ -391,9 +391,6 @@ def run_SMD_simulation(model, source_anchor_index, destination_anchor_index,
     source_anchor = model.anchors[source_anchor_index]
     destination_anchor = model.anchors[destination_anchor_index]
     
-    print("source_anchor.variables:", source_anchor.variables)
-    print("destination_anchor.variables:", destination_anchor.variables)
-    
     cv_id_list = []
     windows_list_unzipped = []
     

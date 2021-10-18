@@ -160,6 +160,7 @@ def save_new_model(model, save_old_model=True):
         copyfile(model_path, new_pre_hidr_model_path)
         
     print("Saving new model.xml")
+    model.anchor_rootdir = "."
     base.save_model(model, model_path)
     return
 
