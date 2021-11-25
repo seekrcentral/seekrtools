@@ -122,8 +122,7 @@ if __name__ == "__main__":
     root_dir = "/home/lvotapka/planar_test"
     model_input = create_host_guest_mmvt_planar_CV_model_input(
         root_dir, bd=False)
-    model, xml_path = prepare.generate_seekr2_model_and_filetree(
-        model_input, force_overwrite=True)
+    model, xml_path = prepare.prepare(model_input, force_overwrite=True)
     model_dir = os.path.dirname(xml_path)
     model.anchor_rootdir = os.path.abspath(model_dir)
     run.run(model, "0")

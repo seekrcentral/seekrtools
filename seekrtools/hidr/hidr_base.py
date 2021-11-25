@@ -13,6 +13,12 @@ import seekr2.modules.check as check
 HIDR_MODEL_GLOB = "model_pre_hidr_*.xml"
 HIDR_MODEL_BASE = "model_pre_hidr_{}.xml"
 
+EQUILIBRATED_NAME = "hidr_equilibrated.pdb"
+EQUILIBRATED_TRAJ_NAME = "hidr_traj_equilibrated.pdb"
+SMD_NAME = "hidr_smd_at_{}.pdb"
+SETTLED_FINAL_STRUCT_NAME = "hidr_settled_at_{}.pdb"
+SETTLED_TRAJ_NAME = "hidr_traj_settled_at_{}.pdb"
+
 def find_anchors_with_starting_structure(model):
     """
     Search the model for anchors which have a defined starting 
@@ -75,17 +81,20 @@ def find_destinations(model, destination_str, anchors_with_starting_structures):
     
     """
     destination_list = []
+    complete_anchor_list = []
     if destination_str == "any":
         for i, anchor in enumerate(model.anchors):
             if anchor.bulkstate:
                 continue
             if i not in anchors_with_starting_structures:
                 destination_list.append(i)
+            complete_anchor_list.append(i)
         
     else:
         destination_list = [int(destination_str)]
+        complete_anchor_list = [int(destination_str)]
         
-    return destination_list
+    return destination_list, complete_anchor_list
     
 def check_destinations(model, anchors_with_starting_structures, 
                        destination_list):
@@ -114,6 +123,10 @@ def check_destinations(model, anchors_with_starting_structures,
         A list of integers representing anchor indices that HIDR
         will generate starting structures for.
     """
+    if not len(destination_list) > 0:
+        print("No destinations found. Do all destination anchors already "\
+              "have starting structures?")
+        
     relevant_starting_anchor_indices = []
     for starting_anchor_index in anchors_with_starting_structures:
         anchor_relevant = False
@@ -131,11 +144,73 @@ def check_destinations(model, anchors_with_starting_structures,
         if anchor_relevant:
             relevant_starting_anchor_indices.append(starting_anchor_index)
     
-    assert len(relevant_starting_anchor_indices) > 0, "There must be at least "\
-        "one destination anchor that is immediately adjacent to an anchor "\
-        "with a starting structure."
+    if not len(relevant_starting_anchor_indices) > 0:
+        print("There is not at least one destination anchor that is "\
+              "immediately adjacent to an anchor with a starting structure."\
+              "SMD will not run.")
+              
     return relevant_starting_anchor_indices
+
+def make_var_string(anchor):
+    """
+    
+    """
+    var_list = []
+    for variable_key in anchor.variables:
+        if variable_key in anchor.variables:
+            value = anchor.variables[variable_key]
+            
+        var_list.append("{:.3f}".format(value))
         
+    var_string = "_".join(var_list)
+    return var_string
+
+def make_settling_names(model, anchor_index):
+    """
+    
+    """
+    var_string = make_var_string(
+        model.anchors[anchor_index])
+    settled_final_filename = SETTLED_FINAL_STRUCT_NAME.format(var_string)
+    settled_traj_filename = SETTLED_TRAJ_NAME.format(var_string)
+    return settled_final_filename, settled_traj_filename
+
+def check_settling_anchors(model, complete_anchor_list):
+    """
+    
+    """
+    settling_anchor_list = []
+    for i, anchor in enumerate(model.anchors):
+        assert i == anchor.index
+        if i not in complete_anchor_list: continue
+        settled_final_filename, settled_traj_filename \
+            = make_settling_names(model, i)
+        output_final_pdb_file = os.path.join(
+            model.anchor_rootdir, anchor.directory, anchor.building_directory,
+            settled_final_filename)
+        output_traj_pdb_file = os.path.join(
+            model.anchor_rootdir, anchor.directory, anchor.building_directory,
+            settled_traj_filename)
+        if anchor.amber_params is not None:
+            if anchor.amber_params.pdb_coordinates_filename:
+                pdb_coords_filename \
+                    = anchor.amber_params.pdb_coordinates_filename
+        
+        elif anchor.forcefield_params is not None:
+            if anchor.forcefield_params.pdb_coordinates_filename:
+                pdb_coords_filename \
+                    = anchor.forcefield_params.pdb_coordinates_filename
+        
+        elif anchor.charmm_params is not None:
+            raise Exception("Charmm systems not yet implemented")
+        
+        if not os.path.exists(output_final_pdb_file) \
+                or not os.path.exists(output_traj_pdb_file) \
+                or pdb_coords_filename != output_traj_pdb_file:
+            settling_anchor_list.append(i)
+    
+    return settling_anchor_list
+
 def save_new_model(model, save_old_model=True):
     """
     At the end of a HIDR calculation, generate a new model file. The
@@ -160,8 +235,10 @@ def save_new_model(model, save_old_model=True):
         copyfile(model_path, new_pre_hidr_model_path)
         
     print("Saving new model.xml")
+    old_rootdir = model.anchor_rootdir
     model.anchor_rootdir = "."
     base.save_model(model, model_path)
+    model.anchor_rootdir = old_rootdir
     return
 
 def change_anchor_pdb_filename(anchor, new_pdb_filename):

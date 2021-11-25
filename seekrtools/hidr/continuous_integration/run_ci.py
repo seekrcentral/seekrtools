@@ -58,16 +58,18 @@ def run_short_ci(model_input, cuda_device_index):
     
     """
     start_dir = os.getcwd()
-    model, xml_path = prepare.generate_seekr2_model_and_filetree(
-        model_input, force_overwrite=False)
+    model, xml_path = prepare.prepare(model_input, force_overwrite=False)
     
     model_dir = os.path.dirname(xml_path)
     model.anchor_rootdir = os.path.abspath(model_dir)
     #check.check_pre_simulation_all(model)
     hidr.hidr(model, "any", dry_run=False, equilibration_steps=1000,  
-         translation_velocity=1.0*unit.nanometers/unit.nanoseconds)
+         translation_velocity=1.0*unit.nanometers/unit.nanoseconds,
+         settling_steps=1000, settling_frames=10)
     os.chdir(start_dir)
     return
+
+# run settle stage for separate anchors
 
 def run_generic_hostguest_ci(cuda_device_index):
     with tempfile.TemporaryDirectory() as temp_dir:

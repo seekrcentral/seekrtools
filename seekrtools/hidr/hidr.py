@@ -23,6 +23,8 @@ import seekr2.modules.check as check
 import seekrtools.hidr.hidr_base as hidr_base
 import seekrtools.hidr.hidr_network as hidr_network
 import seekrtools.hidr.hidr_simulation as hidr_simulation
+from seekrtools.hidr.hidr_base import SETTLED_FINAL_STRUCT_NAME
+from seekrtools.hidr.hidr_base import SETTLED_TRAJ_NAME
 
 def catch_erroneous_destination(destination):
     """
@@ -43,7 +45,7 @@ def hidr(model, destination, pdb_files=[], dry_run=False, equilibration_steps=0,
          skip_minimization=False, 
          restraint_force_constant=90000.0*unit.kilojoules_per_mole*unit.nanometers**2, 
          translation_velocity=0.01*unit.nanometers/unit.nanoseconds, 
-         skip_checks=False):
+         settling_steps=0, settling_frames=1, skip_checks=False):
     """
     Run the full HIDR calculation for a model.
     
@@ -84,10 +86,12 @@ def hidr(model, destination, pdb_files=[], dry_run=False, equilibration_steps=0,
     
     # Find destination(s) and see whether any starting anchors can reach any
     #  destination(s).
-    destination_list = hidr_base.find_destinations(
+    destination_list, complete_anchor_list = hidr_base.find_destinations(
         model, destination, anchors_with_starting_structures)
     relevant_anchors_with_starting_structures = hidr_base.check_destinations(
         model, anchors_with_starting_structures, destination_list)
+    settling_anchor_list = hidr_base.check_settling_anchors(
+        model, complete_anchor_list)
     
     # Given the destination command, generate a recipe of instructions for
     #  reaching all destination anchors
@@ -116,6 +120,12 @@ def hidr(model, destination, pdb_files=[], dry_run=False, equilibration_steps=0,
         destination_anchor_index = step[1]
         print("SMD from anchor {} to anchor {}".format(
             source_anchor_index, destination_anchor_index))
+    
+    if settling_steps > 0:
+        for anchor_index in settling_anchor_list:
+            print("Settling MD in anchor "\
+                  +"{} for {} steps. {} frame(s) will be saved.".format(
+                      anchor_index, settling_steps, settling_frames))
     
     est_time_str = "{:.3f} ns".format(estimated_total_time.value_in_unit(
         unit.nanoseconds))
@@ -149,7 +159,27 @@ def hidr(model, destination, pdb_files=[], dry_run=False, equilibration_steps=0,
         # save the new model file and check the generated structures
         hidr_base.save_new_model(model, save_old_model=False)
     
+    if settling_steps > 0:
+        for anchor_index in settling_anchor_list:
+            print("Settling MD in anchor "\
+                  +"{} for {} steps. {} frame(s) will be saved.".format(
+                      anchor_index, settling_steps, settling_frames))
+            #var_string = hidr_simulation.make_var_string(
+            #    model.anchors[anchor_index])
+            #settled_final_filename = SETTLED_FINAL_STRUCT_NAME.format(var_string)
+            #settled_traj_filename = SETTLED_TRAJ_NAME.format(var_string)
+            settled_final_filename, settled_traj_filename \
+                = hidr_base.make_settling_names(model, anchor_index)
+            ns_per_day = hidr_simulation.run_min_equil_anchor(
+                model, anchor_index, settling_steps, skip_minimization=True, 
+                restraint_force_constant=restraint_force_constant, 
+                equilibrated_name=settled_final_filename, 
+                trajectory_name=settled_traj_filename,
+                assign_trajectory_to_model=True)
+            hidr_base.save_new_model(model, save_old_model=False)
+    
     if not skip_checks:
+        print("Running pre-simulation checks...")
         check.check_pre_simulation_all(model)
     return
 
@@ -196,6 +226,19 @@ if __name__ == "__main__":
         help="The velocity (in nm/ns) to pull the system along "\
         "an SMD trajectory for distance-based CVs. The default is 0.01 nm/ns.")
     argparser.add_argument(
+        "-S", "--settling_steps", dest="settling_steps",
+        metavar="SETTLING_STEPS", type=int, default=0,
+        help="Enter the number of post-pulling stage 'settling' steps, where "\
+        "the system is held at the location of the anchor in an umbrella "\
+        "simulation. This feature can be used to generate a 'starting swarm' "\
+        "for MMVT simulations.")
+    argparser.add_argument(
+        "-f", "--settling_frames", dest="settling_frames", 
+        metavar="SETTLING_FRAMES", type=int, default=1,
+        help="If there is a nonzero number of --settling_steps, a swarm of "\
+        "starting conformations can be generated for MMVT by entering a "\
+        "number here greater than 1.")
+    argparser.add_argument(
         "-s", "--skip_checks", dest="skip_checks", default=False, 
         help="By default, pre-simulation checks will be run after the "\
         "preparation is complete, and if the checks fail, the SEEKR2 "\
@@ -222,6 +265,8 @@ if __name__ == "__main__":
         * unit.kilojoules_per_mole * unit.nanometers**2
     translation_velocity = args["translation_velocity"] * unit.nanometers \
         / unit.nanoseconds
+    settling_steps = args["settling_steps"]
+    settling_frames = args["settling_frames"]
     skip_checks = args["skip_checks"]
     cuda_device_index = args["cuda_device_index"]
     model = base.load_model(model_file)
@@ -231,4 +276,4 @@ if __name__ == "__main__":
             cuda_device_index
     hidr(model, destination, pdb_files, dry_run, equilibration_steps, 
          skip_minimization, restraint_force_constant, translation_velocity, 
-         skip_checks)
+         settling_steps, settling_frames, skip_checks)

@@ -32,9 +32,16 @@ import seekrtools.hidr.hidr_base as hidr_base
 NUM_WINDOWS=10
 NUM_EQUIL_FRAMES=10
 EQUIL_UPDATE_INTERVAL=5000
-EQUILIBRATED_NAME = "hidr_equilibrated.pdb"
-SMD_NAME = "hidr_smd_at_{}.pdb"
-
+#EQUILIBRATED_NAME = "hidr_equilibrated.pdb"
+#EQUILIBRATED_TRAJ_NAME = "hidr_traj_equilibrated.pdb"
+#SMD_NAME = "hidr_smd_at_{}.pdb"
+#SETTLED_FINAL_STRUCT_NAME = "hidr_settled_at_{}.pdb"
+#SETTLED_TRAJ_NAME = "hidr_traj_settled_at_{}.pdb"
+from seekrtools.hidr.hidr_base import EQUILIBRATED_NAME
+from seekrtools.hidr.hidr_base import EQUILIBRATED_TRAJ_NAME
+from seekrtools.hidr.hidr_base import SMD_NAME
+#from seekrtools.hidr.hidr_base import SETTLED_FINAL_STRUCT_NAME
+#from seekrtools.hidr.hidr_base import SETTLED_TRAJ_NAME
 
 class HIDR_sim_openmm(common_sim_openmm.Common_sim_openmm):
     """
@@ -44,7 +51,7 @@ class HIDR_sim_openmm(common_sim_openmm.Common_sim_openmm):
     
     simulation : the OpenMM simulation object.
     
-    traj_reporter : openmm.DCDReporter
+    traj_reporter : openmm.PDBReporter
         The OpenMM Reporter object to which the trajectory will be
         written.
         
@@ -58,7 +65,7 @@ class HIDR_sim_openmm(common_sim_openmm.Common_sim_openmm):
         self.system = None
         self.integrator = None
         self.simulation = None
-        self.traj_reporter = openmm_app.DCDReporter
+        self.traj_reporter = openmm_app.PDBReporter
         self.energy_reporter = openmm_app.StateDataReporter
         return
 
@@ -148,14 +155,15 @@ def add_simulation(sim_openmm, model, topology, positions, box_vectors,
     return
 
 def handle_reporters(model, anchor, sim_openmm, trajectory_reporter_interval, 
-                     energy_reporter_interval):
+                     energy_reporter_interval, 
+                     traj_filename_base=EQUILIBRATED_TRAJ_NAME):
     """
     If relevant, add the necessary state and trajectory reporters to
     the simulation object.
     """
     directory = os.path.join(
-        model.anchor_rootdir, anchor.directory, anchor.production_directory)
-    traj_filename = os.path.join(directory, "hidr.dcd")
+        model.anchor_rootdir, anchor.directory, anchor.building_directory)
+    traj_filename = os.path.join(directory, traj_filename_base)
     simulation = sim_openmm.simulation
     traj_reporter = sim_openmm.traj_reporter
     if trajectory_reporter_interval is not None:
@@ -257,7 +265,11 @@ def add_barostat(sim_openmm, model):
     sim_openmm.system.addForce(barostat)
 
 def run_min_equil_anchor(model, anchor_index, equilibration_steps, 
-                         skip_minimization, restraint_force_constant):
+                         skip_minimization, restraint_force_constant,
+                         equilibrated_name=EQUILIBRATED_NAME, 
+                         trajectory_name=EQUILIBRATED_TRAJ_NAME,
+                         num_equil_frames=NUM_EQUIL_FRAMES,
+                         assign_trajectory_to_model=False):
     """
     Run minimizations and equilibrations for a given anchor.
     
@@ -281,9 +293,11 @@ def run_min_equil_anchor(model, anchor_index, equilibration_steps,
         in nanoseconds per day.
     """
     
-    # TODO: fill out these quantities
-    trajectory_reporter_interval = equilibration_steps // NUM_EQUIL_FRAMES
-    energy_reporter_interval = EQUIL_UPDATE_INTERVAL
+    trajectory_reporter_interval = equilibration_steps // num_equil_frames
+    if trajectory_reporter_interval > EQUIL_UPDATE_INTERVAL:
+        energy_reporter_interval = EQUIL_UPDATE_INTERVAL
+    else:
+        energy_reporter_interval = trajectory_reporter_interval
     total_number_of_steps = equilibration_steps
     
     anchor = model.anchors[anchor_index]
@@ -292,18 +306,19 @@ def run_min_equil_anchor(model, anchor_index, equilibration_steps,
         = common_sim_openmm.create_openmm_system(sim_openmm, model, anchor)
     sim_openmm.system = system
     time_step = add_integrator(sim_openmm, model)
-    add_barostat(sim_openmm, model)
+    # TODO: cannot have barostat for settling stage!!
+    #add_barostat(sim_openmm, model)
     common_sim_openmm.add_platform(sim_openmm, model)
     add_forces(sim_openmm, model, anchor, restraint_force_constant)
     add_simulation(sim_openmm, model, topology, positions, box_vectors, 
                    skip_minimization)
     handle_reporters(model, anchor, sim_openmm, trajectory_reporter_interval, 
-                     energy_reporter_interval)
-    
+                     energy_reporter_interval, 
+                     traj_filename_base=trajectory_name)
     
     output_pdb_file = os.path.join(
         model.anchor_rootdir, anchor.directory, anchor.building_directory,
-        EQUILIBRATED_NAME)
+        equilibrated_name)
     
     start_time = time.time()
     sim_openmm.simulation.step(total_number_of_steps)
@@ -322,7 +337,10 @@ def run_min_equil_anchor(model, anchor_index, equilibration_steps,
     parm.save(output_pdb_file, overwrite=True)
     
     hidr_base.change_anchor_box_vectors(anchor, state.getPeriodicBoxVectors())
-    hidr_base.change_anchor_pdb_filename(anchor, EQUILIBRATED_NAME)
+    if assign_trajectory_to_model:
+        hidr_base.change_anchor_pdb_filename(anchor, trajectory_name)
+    else:
+        hidr_base.change_anchor_pdb_filename(anchor, equilibrated_name)
 
     simulation_in_ns = total_number_of_steps * time_step.value_in_unit(
         unit.picoseconds) * 1e-3
@@ -362,7 +380,6 @@ def run_window(model, anchor, restraint_force_constant, cv_list, window_values,
     box_vectors = state.getPeriodicBoxVectors()
     return system, topology, positions, box_vectors
     
-
 def run_SMD_simulation(model, source_anchor_index, destination_anchor_index, 
                          restraint_force_constant, translation_velocity):
     """
@@ -394,7 +411,6 @@ def run_SMD_simulation(model, source_anchor_index, destination_anchor_index,
     cv_id_list = []
     windows_list_unzipped = []
     
-    var_list = []
     for variable_key in source_anchor.variables:
         var_name = variable_key.split("_")[0]
         var_cv = int(variable_key.split("_")[1])
@@ -407,9 +423,8 @@ def run_SMD_simulation(model, source_anchor_index, destination_anchor_index,
                                 increment)
             windows_list_unzipped.append(windows)
             cv_id_list.append(var_cv)
-        var_list.append("{:.3f}".format(last_value))
         
-    var_string = "_".join(var_list)
+    var_string = hidr_base.make_var_string(destination_anchor)
     hidr_output_pdb_name = SMD_NAME.format(var_string)
     windows_list_zipped = zip(*windows_list_unzipped)
     
