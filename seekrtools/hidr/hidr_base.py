@@ -97,7 +97,7 @@ def find_destinations(model, destination_str, anchors_with_starting_structures):
     return destination_list, complete_anchor_list
     
 def check_destinations(model, anchors_with_starting_structures, 
-                       destination_list):
+                       destination_list, force_overwrite=False):
     """
     Check to make sure that at least one destination anchor is
     adjacent to one anchor which has a starting structure. If
@@ -148,8 +148,25 @@ def check_destinations(model, anchors_with_starting_structures,
         print("There is not at least one destination anchor that is "\
               "immediately adjacent to an anchor with a starting structure."\
               "SMD will not run.")
-              
-    return relevant_starting_anchor_indices
+    
+    if force_overwrite:
+        return relevant_starting_anchor_indices
+    else:
+        relevant_starting_anchor_indices_no_eq = []
+        for starting_anchor_index in relevant_starting_anchor_indices:
+            anchor = model.anchors[starting_anchor_index]
+            directory = os.path.join(
+                model.anchor_rootdir, anchor.directory, 
+                anchor.building_directory)
+            equilibrated_path = os.path.join(directory, EQUILIBRATED_NAME)
+            if not os.path.exists(equilibrated_path):
+                relevant_starting_anchor_indices_no_eq.append(
+                    starting_anchor_index)
+            else:
+                print("Anchor {} has already ".format(starting_anchor_index)\
+                      +"been equilibrated. Skipping equilibration.")
+                  
+        return relevant_starting_anchor_indices_no_eq
 
 def make_var_string(anchor):
     """
@@ -175,7 +192,7 @@ def make_settling_names(model, anchor_index):
     settled_traj_filename = SETTLED_TRAJ_NAME.format(var_string)
     return settled_final_filename, settled_traj_filename
 
-def check_settling_anchors(model, complete_anchor_list):
+def check_settling_anchors(model, complete_anchor_list, force_overwrite=False):
     """
     
     """
@@ -204,10 +221,13 @@ def check_settling_anchors(model, complete_anchor_list):
         elif anchor.charmm_params is not None:
             raise Exception("Charmm systems not yet implemented")
         
-        if not os.path.exists(output_final_pdb_file) \
-                or not os.path.exists(output_traj_pdb_file) \
-                or pdb_coords_filename != output_traj_pdb_file:
+        if force_overwrite:
             settling_anchor_list.append(i)
+        else:
+            if not os.path.exists(output_final_pdb_file) \
+                    or not os.path.exists(output_traj_pdb_file) \
+                    or pdb_coords_filename != settled_traj_filename:
+                settling_anchor_list.append(i)
     
     return settling_anchor_list
 

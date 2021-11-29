@@ -294,10 +294,7 @@ def run_min_equil_anchor(model, anchor_index, equilibration_steps,
     """
     
     trajectory_reporter_interval = equilibration_steps // num_equil_frames
-    if trajectory_reporter_interval > EQUIL_UPDATE_INTERVAL:
-        energy_reporter_interval = EQUIL_UPDATE_INTERVAL
-    else:
-        energy_reporter_interval = trajectory_reporter_interval
+    energy_reporter_interval = trajectory_reporter_interval
     total_number_of_steps = equilibration_steps
     
     anchor = model.anchors[anchor_index]

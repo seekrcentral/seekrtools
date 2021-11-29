@@ -45,7 +45,8 @@ def hidr(model, destination, pdb_files=[], dry_run=False, equilibration_steps=0,
          skip_minimization=False, 
          restraint_force_constant=90000.0*unit.kilojoules_per_mole*unit.nanometers**2, 
          translation_velocity=0.01*unit.nanometers/unit.nanoseconds, 
-         settling_steps=0, settling_frames=1, skip_checks=False):
+         settling_steps=0, settling_frames=1, skip_checks=False, 
+         force_overwrite=False):
     """
     Run the full HIDR calculation for a model.
     
@@ -73,7 +74,9 @@ def hidr(model, destination, pdb_files=[], dry_run=False, equilibration_steps=0,
     skip_checks : bool
         Whether to skip checks after HIDR, which are normally used to
         ensure that HIDR placed the anchors correctly.
-        
+    force_overwrite : bool
+        Whether to overwrite any simulation files instead of skipping over them
+        if detected.
     """
     assert catch_erroneous_destination(destination)
     
@@ -89,9 +92,10 @@ def hidr(model, destination, pdb_files=[], dry_run=False, equilibration_steps=0,
     destination_list, complete_anchor_list = hidr_base.find_destinations(
         model, destination, anchors_with_starting_structures)
     relevant_anchors_with_starting_structures = hidr_base.check_destinations(
-        model, anchors_with_starting_structures, destination_list)
+        model, anchors_with_starting_structures, destination_list, 
+        force_overwrite)
     settling_anchor_list = hidr_base.check_settling_anchors(
-        model, complete_anchor_list)
+        model, complete_anchor_list, force_overwrite)
     
     # Given the destination command, generate a recipe of instructions for
     #  reaching all destination anchors
@@ -233,7 +237,7 @@ if __name__ == "__main__":
         "simulation. This feature can be used to generate a 'starting swarm' "\
         "for MMVT simulations.")
     argparser.add_argument(
-        "-f", "--settling_frames", dest="settling_frames", 
+        "-F", "--settling_frames", dest="settling_frames", 
         metavar="SETTLING_FRAMES", type=int, default=1,
         help="If there is a nonzero number of --settling_steps, a swarm of "\
         "starting conformations can be generated for MMVT by entering a "\
@@ -252,6 +256,13 @@ if __name__ == "__main__":
         "indices, simply enter comma separated indices. Example: '0,1'. If a "\
         "value is not supplied, the value in the MODEL_FILE will be used by "\
         "default.", type=str)
+    argparser.add_argument(
+        "-f", "--force_overwrite", dest="force_overwrite", default=False,
+        help="Toggle whether to overwrite existing simulation output files "\
+        "within any anchor that might have existed in an old model that would "\
+        "be overwritten by generating this new model. If not toggled, this "\
+        "program will skip the stage instead of performing any such "\
+        "overwrite.", action="store_true")
     
     args = argparser.parse_args() # parse the args into a dictionary
     args = vars(args)
@@ -269,6 +280,7 @@ if __name__ == "__main__":
     settling_frames = args["settling_frames"]
     skip_checks = args["skip_checks"]
     cuda_device_index = args["cuda_device_index"]
+    force_overwrite = args["force_overwrite"]
     model = base.load_model(model_file)
     if cuda_device_index is not None:
         assert model.openmm_settings.cuda_platform_settings is not None
@@ -276,4 +288,4 @@ if __name__ == "__main__":
             cuda_device_index
     hidr(model, destination, pdb_files, dry_run, equilibration_steps, 
          skip_minimization, restraint_force_constant, translation_velocity, 
-         settling_steps, settling_frames, skip_checks)
+         settling_steps, settling_frames, skip_checks, force_overwrite)
