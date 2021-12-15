@@ -1,4 +1,8 @@
 <?xml version="1.0" ?>
+<!--
+To run HIDR, use command:
+python hidr.py any ~/test_hidr/model.xml -M RAMD -K 14.0
+-->
 <model_input class='Model_input'>
     <calculation_type>mmvt</calculation_type>
     <calculation_settings class="MMVT_input_settings">

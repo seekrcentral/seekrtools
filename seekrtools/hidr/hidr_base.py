@@ -16,6 +16,8 @@ HIDR_MODEL_BASE = "model_pre_hidr_{}.xml"
 EQUILIBRATED_NAME = "hidr_equilibrated.pdb"
 EQUILIBRATED_TRAJ_NAME = "hidr_traj_equilibrated.pdb"
 SMD_NAME = "hidr_smd_at_{}.pdb"
+RAMD_NAME = "hidr_ramd_at_{}.pdb"
+RAMD_TRAJ_NAME = "hidr_traj_ramd.pdb"
 SETTLED_FINAL_STRUCT_NAME = "hidr_settled_at_{}.pdb"
 SETTLED_TRAJ_NAME = "hidr_traj_settled_at_{}.pdb"
 
@@ -347,6 +349,8 @@ def assign_pdb_file_to_model(model, pdb_file):
             print("Assigning pdb file {} to anchor {}".format(
                 pdb_file, anchor.index))
             change_anchor_pdb_filename(anchor, pdb_base)
+            box_vectors = base.get_box_vectors_from_pdb(new_pdb_filename)
+            change_anchor_box_vectors(anchor, box_vectors)
             
             break
     return

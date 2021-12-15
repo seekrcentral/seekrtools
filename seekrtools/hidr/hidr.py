@@ -42,8 +42,9 @@ def catch_erroneous_destination(destination):
     return True
 
 def hidr(model, destination, pdb_files=[], dry_run=False, equilibration_steps=0, 
-         skip_minimization=False, 
-         restraint_force_constant=90000.0*unit.kilojoules_per_mole*unit.nanometers**2, 
+         skip_minimization=False, mode="SMD",
+         restraint_force_constant=90000.0*unit.kilojoules_per_mole/unit.nanometers**2, 
+         ramd_force_magnitude=14.0*unit.kilocalories_per_mole/unit.nanometers, 
          translation_velocity=0.01*unit.nanometers/unit.nanoseconds, 
          settling_steps=0, settling_frames=1, skip_checks=False, 
          force_overwrite=False):
@@ -80,6 +81,9 @@ def hidr(model, destination, pdb_files=[], dry_run=False, equilibration_steps=0,
     """
     assert catch_erroneous_destination(destination)
     
+    assert mode in ["SMD", "RAMD"], "Incorrect mode option: {}. ".format(mode)\
+        +"Available options are: 'SMD' and 'RAMD'."
+    
     for pdb_file in pdb_files:
         hidr_base.assign_pdb_file_to_model(model, pdb_file)
     
@@ -99,12 +103,22 @@ def hidr(model, destination, pdb_files=[], dry_run=False, equilibration_steps=0,
     
     # Given the destination command, generate a recipe of instructions for
     #  reaching all destination anchors
-    procedure = hidr_network.get_procedure(
-        model, anchors_with_starting_structures, destination_list)
+    if mode == "SMD":
+        procedure = hidr_network.get_procedure(
+            model, anchors_with_starting_structures, destination_list)
+        estimated_smd_time = hidr_network.estimate_simulation_time(
+        model, procedure, translation_velocity)
+    elif mode == "RAMD":
+        #procedure = [[anchors_with_starting_structures[-1], destination_list]]
+        smd_procedure = hidr_network.get_procedure(
+            model, anchors_with_starting_structures, destination_list)
+        starting_anchor = smd_procedure[0][0]
+        procedure = [[starting_anchor, destination_list]]
+        estimated_smd_time = 100.0 * unit.nanoseconds
+        
     estimated_equilibration_time = equilibration_steps \
         * hidr_simulation.get_timestep(model)
-    estimated_smd_time = hidr_network.estimate_simulation_time(
-        model, procedure, translation_velocity)
+    
     estimated_total_time = estimated_equilibration_time + estimated_smd_time
     
     # Print the entire procedure for the user.
@@ -118,12 +132,19 @@ def hidr(model, destination, pdb_files=[], dry_run=False, equilibration_steps=0,
             print("Equilibration on anchor {} for {} steps.".format(
                 starting_anchor_index, equilibration_steps))
     
-    print("SMD force constant is {}".format(restraint_force_constant))
+    
     for step in procedure:
         source_anchor_index = step[0]
         destination_anchor_index = step[1]
-        print("SMD from anchor {} to anchor {}".format(
-            source_anchor_index, destination_anchor_index))
+        if mode == "SMD":
+            force_constant = restraint_force_constant
+            
+        elif mode == "RAMD":
+            force_constant = ramd_force_magnitude
+        
+        print("{} force constant is {}".format(mode, force_constant))
+        print("{} from anchor {} to anchor {}".format(
+            mode, source_anchor_index, destination_anchor_index))
     
     if settling_steps > 0:
         for anchor_index in settling_anchor_list:
@@ -149,19 +170,42 @@ def hidr(model, destination, pdb_files=[], dry_run=False, equilibration_steps=0,
             
             print("Performance:", ns_per_day, "ns per day")
     
-    hidr_base.save_new_model(model)
+        hidr_base.save_new_model(model)
+        
     # Run the recipe of SMD instructions
     for step in procedure:
-        source_anchor_index = step[0]
-        destination_anchor_index = step[1]
-        print("running SMD from anchor {} to anchor {}".format(
-            source_anchor_index, destination_anchor_index))
-        hidr_simulation.run_SMD_simulation(
-            model, source_anchor_index, destination_anchor_index, 
-            restraint_force_constant, translation_velocity)
+        if mode == "SMD":
+            source_anchor_index = step[0]
+            destination_anchor_index = step[1]
+            print("running SMD from anchor {} to anchor {}".format(
+                source_anchor_index, destination_anchor_index))
+            hidr_simulation.run_SMD_simulation(
+                model, source_anchor_index, destination_anchor_index, 
+                restraint_force_constant, translation_velocity)
+            
+            # save the new model file and check the generated structures
+            hidr_base.save_new_model(model, save_old_model=False)
+            
+        elif mode == "RAMD":
+            source_anchor_index = step[0]
+            destination_anchor_indices = step[1]
+            print("running RAMD from anchor {} to anchor {}".format(
+                source_anchor_index, destination_anchor_indices))
+            
+            # TODO: REDO HACK !!!
+            rec_indices = model.collective_variables[0].group1
+            lig_indices = model.collective_variables[0].group2
+            
+            hidr_simulation.run_RAMD_simulation(
+                model, ramd_force_magnitude, source_anchor_index, 
+                destination_anchor_indices, lig_indices, rec_indices)
+            # save the new model file and check the generated structures
+            hidr_base.save_new_model(model, save_old_model=True)
+            
+        else:
+            print("mode not allowed: {}".format(mode))
     
-        # save the new model file and check the generated structures
-        hidr_base.save_new_model(model, save_old_model=False)
+        
     
     if settling_steps > 0:
         for anchor_index in settling_anchor_list:
@@ -202,6 +246,12 @@ if __name__ == "__main__":
         "the anchors.")
     
     argparser.add_argument(
+        "-M", "--mode", dest="mode", default="SMD", type=str,
+        metavar="MODE", help="The 'mode' or type of enhanced sampling method"\
+        "to use for generating starting structures for HIDR. At this time, "\
+        "the options 'SMD' and 'RAMD' have been implemented.")
+    
+    argparser.add_argument(
         "-p", "--pdb_files", dest="pdb_files", default=[], nargs="*", type=str,
         metavar="FILE1 FILE2 ...", help="One or more PDB files which will be "\
         "placed into the correct anchors. NOTE: the parameter/topology files "\
@@ -223,7 +273,13 @@ if __name__ == "__main__":
     argparser.add_argument(
         "-k", "--restraint_force_constant", dest="restraint_force_constant",
         type=float, default=90000.0, 
-        help="The force constant to use for restraints.")
+        help="The force constant to use for restraints in units of "\
+        "kilojoules per mole per nanometer**2")
+    argparser.add_argument(
+        "-K", "--ramd_force_magnitude", dest="ramd_force_magnitude",
+        type=float, default=14.0, 
+        help="The force constant to use for the RAMD force in units of "\
+        "kilocalories per mole per angstrom.")
     argparser.add_argument(
         "-v", "--translation_velocity", dest="translation_velocity",
         type=float, default=0.01, 
@@ -268,12 +324,15 @@ if __name__ == "__main__":
     args = vars(args)
     destination = args["destination"]
     model_file = args["model_file"]
+    mode = args["mode"]
     pdb_files = args["pdb_files"]
     dry_run = args["dry_run"]
     equilibration_steps = args["equilibration_steps"]
     skip_minimization = args["skip_minimization"]
     restraint_force_constant = args["restraint_force_constant"] \
-        * unit.kilojoules_per_mole * unit.nanometers**2
+        * unit.kilojoules_per_mole / unit.nanometers**2
+    ramd_force_magnitude = args["ramd_force_magnitude"] \
+        * unit.kilocalories_per_mole / unit.angstroms
     translation_velocity = args["translation_velocity"] * unit.nanometers \
         / unit.nanoseconds
     settling_steps = args["settling_steps"]
@@ -287,5 +346,6 @@ if __name__ == "__main__":
         model.openmm_settings.cuda_platform_settings.cuda_device_index = \
             cuda_device_index
     hidr(model, destination, pdb_files, dry_run, equilibration_steps, 
-         skip_minimization, restraint_force_constant, translation_velocity, 
+         skip_minimization, mode, restraint_force_constant, 
+         ramd_force_magnitude, translation_velocity, 
          settling_steps, settling_frames, skip_checks, force_overwrite)
