@@ -483,7 +483,7 @@ def run_SMD_simulation(model, source_anchor_index, destination_anchor_index,
     
 def run_RAMD_simulation(model, force_constant, source_anchor_index, 
                         destination_anchor_indices, lig_indices, rec_indices,
-                        max_num_steps=5000000):
+                        max_num_steps=10000000):
     """
     Run a random accelerated molecular dynamics (SMD) simulation 
     until every destination anchor index has been reached. The 
@@ -505,8 +505,8 @@ def run_RAMD_simulation(model, force_constant, source_anchor_index,
     steps_per_RAMD_update = 50
     steps_per_anchor_check = 250
     RAMD_cutoff_distance = 0.0025 * unit.nanometer
-    trajectory_reporter_interval = 5000
-    energy_reporter_interval = 5000
+    trajectory_reporter_interval = 500000
+    energy_reporter_interval = 50000
     source_anchor = model.anchors[source_anchor_index]
     sim_openmm = HIDR_sim_openmm()
     system, topology, positions, box_vectors \
@@ -537,6 +537,7 @@ def run_RAMD_simulation(model, force_constant, source_anchor_index,
     old_positions = None
     old_anchor_index = source_anchor_index
     found_bulk_state = False
+    destination_anchor_index = -1
     while counter < max_num_steps:
         old_com = new_com
         simulation.step(steps_per_RAMD_update)
@@ -567,7 +568,9 @@ def run_RAMD_simulation(model, force_constant, source_anchor_index,
                 if in_anchor:
                     
                     if i in destination_anchor_indices:
-                        print("First entered anchor {}. counter: {}".format(i, counter))
+                        if i == destination_anchor_index:
+                            continue
+                        print("Entered anchor {}. counter: {}".format(i, counter))
                         destination_anchor_index = i
                         destination_anchor = model.anchors[destination_anchor_index]
                         
@@ -629,7 +632,7 @@ def run_RAMD_simulation(model, force_constant, source_anchor_index,
                         parm = parmed.openmm.load_topology(topology.topology, system)
                         parm.positions = old_positions
                         parm.box_vectors = box_vectors.to_quantity()
-                        print("saving final PDB file:", output_pdb_file)
+                        print("saving previous anchor PDB file:", output_pdb_file)
                         parm.save(output_pdb_file, overwrite=True)
                     
                     old_anchor_index = i
@@ -637,8 +640,8 @@ def run_RAMD_simulation(model, force_constant, source_anchor_index,
                     if anchor.bulkstate:
                         found_bulk_state = True
                     
-            for popping_index in popping_indices:
-                destination_anchor_indices.remove(popping_index)
+            #for popping_index in popping_indices:
+            #    destination_anchor_indices.remove(popping_index)
                 
             if len(destination_anchor_indices) == 0:
                 # We've reached all destinations
