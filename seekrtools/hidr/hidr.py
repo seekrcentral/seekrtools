@@ -113,9 +113,9 @@ def hidr(model, destination, pdb_files=[], dry_run=False, equilibration_steps=0,
         smd_procedure = hidr_network.get_procedure(
             model, anchors_with_starting_structures, destination_list)
         starting_anchor = smd_procedure[0][0]
-        procedure = [[starting_anchor, destination_list]]
-        #procedure = [[starting_anchor, complete_anchor_list]]
-        estimated_smd_time = 10.0 * unit.nanoseconds
+        #procedure = [[starting_anchor, destination_list]]
+        procedure = [[starting_anchor, complete_anchor_list]]
+        estimated_smd_time = 20.0 * unit.nanoseconds
         
     estimated_equilibration_time = equilibration_steps \
         * hidr_simulation.get_timestep(model)

@@ -537,7 +537,7 @@ def run_RAMD_simulation(model, force_constant, source_anchor_index,
     old_positions = None
     old_anchor_index = source_anchor_index
     found_bulk_state = False
-    destination_anchor_index = -1
+    destination_anchor_index = source_anchor_index
     while counter < max_num_steps:
         old_com = new_com
         simulation.step(steps_per_RAMD_update)
@@ -549,11 +549,11 @@ def run_RAMD_simulation(model, force_constant, source_anchor_index,
         com_com_distance = np.linalg.norm(old_com.value_in_unit(unit.nanometers) \
                                       - new_com.value_in_unit(unit.nanometers))
         
-        
         if com_com_distance*unit.nanometers < RAMD_cutoff_distance:
             print("recomputing force at step:", counter)
             simulation.recompute_RAMD_force()
         
+        found_anchor = False
         if counter % steps_per_anchor_check == 0:
             popping_indices = []
             for i, anchor in enumerate(model.anchors):
@@ -566,7 +566,9 @@ def run_RAMD_simulation(model, force_constant, source_anchor_index,
                         in_anchor = False
                 
                 if in_anchor:
-                    
+                    assert not found_anchor, "Found system in two different "\
+                        "anchors in the same step."
+                    found_anchor = True
                     if i in destination_anchor_indices:
                         if i == destination_anchor_index:
                             continue
@@ -574,33 +576,36 @@ def run_RAMD_simulation(model, force_constant, source_anchor_index,
                         destination_anchor_index = i
                         destination_anchor = model.anchors[destination_anchor_index]
                         
-                        destination_anchor.amber_params = deepcopy(source_anchor.amber_params)
-                        if destination_anchor.amber_params is not None:
-                            src_prmtop_filename = os.path.join(
-                                model.anchor_rootdir, source_anchor.directory, 
-                                source_anchor.building_directory,
-                                source_anchor.amber_params.prmtop_filename)
-                            dest_prmtop_filename = os.path.join(
-                                model.anchor_rootdir, destination_anchor.directory, 
-                                destination_anchor.building_directory,
-                                destination_anchor.amber_params.prmtop_filename)
-                            if os.path.exists(dest_prmtop_filename):
-                                os.remove(dest_prmtop_filename)
-                            copyfile(src_prmtop_filename, dest_prmtop_filename)
-                            #destination_anchor.amber_params.box_vectors = base.Box_vectors()
-                            #destination_anchor.amber_params.box_vectors.from_quantity(box_vectors)
+                        if destination_anchor_index != source_anchor_index:
+                            destination_anchor.amber_params = deepcopy(source_anchor.amber_params)
+                            if destination_anchor.amber_params is not None:
+                                src_prmtop_filename = os.path.join(
+                                    model.anchor_rootdir, source_anchor.directory, 
+                                    source_anchor.building_directory,
+                                    source_anchor.amber_params.prmtop_filename)
+                                dest_prmtop_filename = os.path.join(
+                                    model.anchor_rootdir, destination_anchor.directory, 
+                                    destination_anchor.building_directory,
+                                    destination_anchor.amber_params.prmtop_filename)
+                                if os.path.exists(dest_prmtop_filename):
+                                    os.remove(dest_prmtop_filename)
+                                copyfile(src_prmtop_filename, dest_prmtop_filename)
+                                #destination_anchor.amber_params.box_vectors = base.Box_vectors()
+                                #destination_anchor.amber_params.box_vectors.from_quantity(box_vectors)
+                                
+                            destination_anchor.forcefield_params = deepcopy(source_anchor.forcefield_params)
+                            if destination_anchor.forcefield_params is not None:
+                                pass
+                                # TODO: more here for forcefield
+                            destination_anchor.charmm_params = deepcopy(source_anchor.charmm_params)
+                            if destination_anchor.charmm_params is not None:
+                                pass
+                                # TODO: more here for charmm
                             
-                        destination_anchor.forcefield_params = deepcopy(source_anchor.forcefield_params)
-                        if destination_anchor.forcefield_params is not None:
-                            pass
-                            # TODO: more here for forcefield
-                        destination_anchor.charmm_params = deepcopy(source_anchor.charmm_params)
-                        if destination_anchor.charmm_params is not None:
-                            pass
-                            # TODO: more here for charmm
+                            hidr_base.change_anchor_box_vectors(
+                                destination_anchor, box_vectors.to_quantity())
                         
-                        hidr_base.change_anchor_box_vectors(
-                            destination_anchor, box_vectors.to_quantity())
+                        
                         var_string = hidr_base.make_var_string(destination_anchor)
                         hidr_output_pdb_name = RAMD_NAME.format(var_string)
                         hidr_base.change_anchor_pdb_filename(
@@ -627,15 +632,15 @@ def run_RAMD_simulation(model, force_constant, source_anchor_index,
                         
                         output_pdb_file = os.path.join(
                             model.anchor_rootdir, old_anchor.directory,
-                            old_anchor.building_directory,hidr_output_pdb_name)
+                            old_anchor.building_directory, hidr_output_pdb_name)
                         
                         parm = parmed.openmm.load_topology(topology.topology, system)
                         parm.positions = old_positions
                         parm.box_vectors = box_vectors.to_quantity()
                         print("saving previous anchor PDB file:", output_pdb_file)
                         parm.save(output_pdb_file, overwrite=True)
-                    
-                    old_anchor_index = i
+                        old_anchor_index = i
+                        old_positions = positions
                     
                     if anchor.bulkstate:
                         found_bulk_state = True
@@ -649,8 +654,6 @@ def run_RAMD_simulation(model, force_constant, source_anchor_index,
             
             if found_bulk_state:
                 break
-            
-            old_positions = positions
             
         counter += steps_per_RAMD_update
         
