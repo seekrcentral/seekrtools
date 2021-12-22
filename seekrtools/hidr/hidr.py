@@ -47,7 +47,7 @@ def hidr(model, destination, pdb_files=[], dry_run=False, equilibration_steps=0,
          ramd_force_magnitude=14.0*unit.kilocalories_per_mole/unit.nanometers, 
          translation_velocity=0.01*unit.nanometers/unit.nanoseconds, 
          settling_steps=0, settling_frames=1, skip_checks=False, 
-         force_overwrite=False):
+         force_overwrite=False, traj_mode=False):
     """
     Run the full HIDR calculation for a model.
     
@@ -199,7 +199,8 @@ def hidr(model, destination, pdb_files=[], dry_run=False, equilibration_steps=0,
             
             hidr_simulation.run_RAMD_simulation(
                 model, ramd_force_magnitude, source_anchor_index, 
-                destination_anchor_indices, lig_indices, rec_indices)
+                destination_anchor_indices, lig_indices, rec_indices, 
+                traj_mode=traj_mode)
             # save the new model file and check the generated structures
             hidr_base.save_new_model(model, save_old_model=True)
             
@@ -320,6 +321,11 @@ if __name__ == "__main__":
         "be overwritten by generating this new model. If not toggled, this "\
         "program will skip the stage instead of performing any such "\
         "overwrite.", action="store_true")
+    argparser.add_argument(
+        "-T", "--traj_mode", dest="traj_mode", default=False,
+        help="Toggle whether to enable trajectory mode for RAMD, which will "\
+        "save all crossing events to be simulated in an MMVT swarm.", 
+        action="store_true")
     
     args = argparser.parse_args() # parse the args into a dictionary
     args = vars(args)
@@ -341,6 +347,8 @@ if __name__ == "__main__":
     skip_checks = args["skip_checks"]
     cuda_device_index = args["cuda_device_index"]
     force_overwrite = args["force_overwrite"]
+    traj_mode = args["traj_mode"]
+    
     model = base.load_model(model_file)
     if cuda_device_index is not None:
         assert model.openmm_settings.cuda_platform_settings is not None
@@ -349,4 +357,5 @@ if __name__ == "__main__":
     hidr(model, destination, pdb_files, dry_run, equilibration_steps, 
          skip_minimization, mode, restraint_force_constant, 
          ramd_force_magnitude, translation_velocity, 
-         settling_steps, settling_frames, skip_checks, force_overwrite)
+         settling_steps, settling_frames, skip_checks, force_overwrite, 
+         traj_mode)

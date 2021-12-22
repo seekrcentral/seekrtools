@@ -10,6 +10,7 @@ from copy import deepcopy
 
 import numpy as np
 import parmed
+import mdtraj
 try:
     import openmm.app as openmm_app
     import openmm
@@ -483,7 +484,7 @@ def run_SMD_simulation(model, source_anchor_index, destination_anchor_index,
     
 def run_RAMD_simulation(model, force_constant, source_anchor_index, 
                         destination_anchor_indices, lig_indices, rec_indices,
-                        max_num_steps=10000000):
+                        max_num_steps=10000000, traj_mode=False):
     """
     Run a random accelerated molecular dynamics (SMD) simulation 
     until every destination anchor index has been reached. The 
@@ -520,6 +521,12 @@ def run_RAMD_simulation(model, force_constant, source_anchor_index,
         rec_indices, sim_openmm.platform, sim_openmm.properties)
     
     simulation.context.setPositions(positions.positions)
+    
+    anchor_pdb_counters = []
+    anchor_pdb_filenames = []
+    for i, anchor in enumerate(model.anchors):
+        anchor_pdb_counters.append(0)
+        anchor_pdb_filenames.append([])
     
     if box_vectors is not None:
         simulation.context.setPeriodicBoxVectors(
@@ -605,17 +612,17 @@ def run_RAMD_simulation(model, force_constant, source_anchor_index,
                             hidr_base.change_anchor_box_vectors(
                                 destination_anchor, box_vectors.to_quantity())
                         
-                        
                         var_string = hidr_base.make_var_string(destination_anchor)
-                        hidr_output_pdb_name = RAMD_NAME.format(var_string)
-                        hidr_base.change_anchor_pdb_filename(
-                            destination_anchor, hidr_output_pdb_name)
+                        hidr_output_pdb_name = RAMD_NAME.format(var_string, 0)
                         
                         output_pdb_file = os.path.join(
                             model.anchor_rootdir, destination_anchor.directory,
                             destination_anchor.building_directory,hidr_output_pdb_name)
                         
-                        if not destination_anchor.bulkstate:
+                        if not destination_anchor.bulkstate \
+                                and not os.path.exists(output_pdb_file):
+                            hidr_base.change_anchor_pdb_filename(
+                                destination_anchor, hidr_output_pdb_name)
                             parm = parmed.openmm.load_topology(topology.topology, system)
                             parm.positions = positions
                             parm.box_vectors = box_vectors.to_quantity()
@@ -626,7 +633,7 @@ def run_RAMD_simulation(model, force_constant, source_anchor_index,
                         
                         old_anchor = model.anchors[old_anchor_index]
                         var_string = hidr_base.make_var_string(old_anchor)
-                        hidr_output_pdb_name = RAMD_NAME.format(var_string)
+                        hidr_output_pdb_name = RAMD_NAME.format(var_string, anchor_pdb_counters[old_anchor_index])
                         hidr_base.change_anchor_pdb_filename(
                             old_anchor, hidr_output_pdb_name)
                         
@@ -639,6 +646,12 @@ def run_RAMD_simulation(model, force_constant, source_anchor_index,
                         parm.box_vectors = box_vectors.to_quantity()
                         print("saving previous anchor PDB file:", output_pdb_file)
                         parm.save(output_pdb_file, overwrite=True)
+                        if traj_mode:
+                            anchor_pdb_counters[old_anchor_index] += 1
+                            anchor_pdb_filenames[old_anchor_index].append(output_pdb_file)
+                        else:
+                            anchor_pdb_filenames[old_anchor_index] = [output_pdb_file]
+                        
                         old_anchor_index = i
                         old_positions = positions
                     
@@ -656,5 +669,31 @@ def run_RAMD_simulation(model, force_constant, source_anchor_index,
                 break
             
         counter += steps_per_RAMD_update
-        
+    
+    if traj_mode:
+        for i, anchor in enumerate(model.anchors):
+            if anchor.bulkstate or len(anchor_pdb_filenames[i]) == 0:
+                continue
+            directory = os.path.join(
+                model.anchor_rootdir, anchor.directory, 
+                anchor.building_directory)
+            #pdb_file_list = anchor_pdb_filenames[i]
+            #pdb_swarm_name = combine_pdb_files_into_traj(directory, pdb_file_list)
+            var_string = hidr_base.make_var_string(anchor)
+            pdb_swarm_name = RAMD_NAME.format(var_string, "swarm")
+            
+            os.chdir(directory)
+            
+            stride = 1
+            if len(anchor_pdb_filenames[i]) > 100:
+                stride = anchor_pdb_filenames[i] // 100
+            
+            #traj = mdtraj.load(anchor_pdb_filenames[i][::-1])
+            traj = mdtraj.load(anchor_pdb_filenames[i][::-1][::stride])
+            traj.save_pdb(pdb_swarm_name)
+            for filename in anchor_pdb_filenames[i]:
+                os.remove(filename)
+            
+            hidr_base.change_anchor_pdb_filename(anchor, pdb_swarm_name)
+    
     return
