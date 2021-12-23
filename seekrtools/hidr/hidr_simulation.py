@@ -686,7 +686,7 @@ def run_RAMD_simulation(model, force_constant, source_anchor_index,
             
             stride = 1
             if len(anchor_pdb_filenames[i]) > 100:
-                stride = anchor_pdb_filenames[i] // 100
+                stride = len(anchor_pdb_filenames[i]) // 100
             
             #traj = mdtraj.load(anchor_pdb_filenames[i][::-1])
             traj = mdtraj.load(anchor_pdb_filenames[i][::-1][::stride])
