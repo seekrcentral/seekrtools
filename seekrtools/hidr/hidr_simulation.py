@@ -670,6 +670,11 @@ def run_RAMD_simulation(model, force_constant, source_anchor_index,
             
         counter += steps_per_RAMD_update
     
+    for i, anchor in enumerate(model.anchors):
+        if len(anchor_pdb_filenames[i]) == 0:
+            print("Warning: anchor {} has no starting PDB structures."\
+                  .format(i))
+    
     if traj_mode:
         for i, anchor in enumerate(model.anchors):
             if anchor.bulkstate or len(anchor_pdb_filenames[i]) == 0:
@@ -685,8 +690,8 @@ def run_RAMD_simulation(model, force_constant, source_anchor_index,
             os.chdir(directory)
             
             stride = 1
-            if len(anchor_pdb_filenames[i]) > 100:
-                stride = len(anchor_pdb_filenames[i]) // 100
+            if len(anchor_pdb_filenames[i]) > 10:
+                stride = len(anchor_pdb_filenames[i]) // 10
             
             #traj = mdtraj.load(anchor_pdb_filenames[i][::-1])
             traj = mdtraj.load(anchor_pdb_filenames[i][::-1][::stride])
