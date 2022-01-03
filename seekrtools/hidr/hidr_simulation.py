@@ -568,7 +568,8 @@ def run_RAMD_simulation(model, force_constant, source_anchor_index,
                 for milestone in anchor.milestones:
                     cv = model.collective_variables[milestone.cv_index]
                     result = cv.check_openmm_context_within_boundary(
-                        simulation.context, milestone.variables, positions)
+                        simulation.context, milestone.variables, positions, 
+                        tolerance=-0.01)
                     if not result:
                         in_anchor = False
                 
@@ -671,7 +672,10 @@ def run_RAMD_simulation(model, force_constant, source_anchor_index,
         counter += steps_per_RAMD_update
     
     for i, anchor in enumerate(model.anchors):
-        if len(anchor_pdb_filenames[i]) == 0:
+        if anchor.bulkstate:
+            continue
+        # TODO: fix hack
+        if anchor.amber_params.pdb_coordinates_filename == "":
             print("Warning: anchor {} has no starting PDB structures."\
                   .format(i))
     
