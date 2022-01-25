@@ -17,6 +17,21 @@ import seekr2.run as run
 
 import seekrtools.hidr.hidr as hidr
 
+receptor_group = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 
+            17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 
+            31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 
+            45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 
+            59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 
+            73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 
+            87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 
+            101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 
+            112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 
+            123, 124, 125, 126, 127, 128, 129, 130, 131, 132, 133, 
+            134, 135, 136, 137, 138, 139, 140, 141, 142, 143, 144, 
+            145, 146]
+ligand_group = [147, 148, 149, 150, 151, 152, 153, 154, 155, 156, 157, 
+                158, 159, 160, 161]
+
 def assign_amber_params(input_anchor, prmtop_filename, pdb_filename):
     input_anchor.starting_amber_params = base.Amber_params()
     input_anchor.starting_amber_params.prmtop_filename = prmtop_filename
@@ -95,32 +110,39 @@ def create_host_guest_mmvt_bond_order_CV_model_input(
     
         cv_input1.input_anchors.append(input_anchor)
     
+    model_input.cv_inputs = [cv_input1]
     
-    
-    cv_input2 = common_cv.Spherical_cv_input()
-    cv_input2.group1 = list(range(147))
-    cv_input2.group2 = list(range(147, 162))
-    cv_input2.input_anchors = []
-    
-    input_anchor1 = common_cv.Spherical_cv_anchor()
-    input_anchor1.radius = 1.25
-    input_anchor1.bound_state = False
-    input_anchor1.bulk_anchor = False
-    input_anchor1.connection_flags = [1]
-    cv_input2.input_anchors.append(input_anchor1)
-    
-    input_anchor2 = common_cv.Spherical_cv_anchor()
-    input_anchor2.radius = 1.35
-    input_anchor2.bound_state = False
-    input_anchor2.bulk_anchor = True
-    cv_input2.input_anchors.append(input_anchor2)
-    
-    model_input.cv_inputs = [cv_input1, cv_input2]
-    
-    #model_input.cv_inputs[1].input_anchors[-1].bulk_anchor = True
-    model_input.cv_inputs[0].input_anchors[-1].connection_flags = [1]
+    model_input.cv_inputs[0].input_anchors[-1].bulk_anchor = False
     
     if bd:
+        
+    
+        model_input.cv_inputs[0].input_anchors[-1].connection_flags = [1]
+        cv_input2 = common_cv.Spherical_cv_input()
+        cv_input2.group1 = receptor_group
+        cv_input2.group2 = ligand_group
+        cv_input2.input_anchors = []
+        spherical_input_anchor1 = common_cv.Spherical_cv_anchor()
+        spherical_input_anchor1.radius = 1.35
+        spherical_input_anchor1.bound_state = False
+        spherical_input_anchor1.bulk_anchor = False
+        spherical_input_anchor1.connection_flags = [1]
+        cv_input2.input_anchors.append(spherical_input_anchor1)
+        
+        spherical_input_anchor2 = common_cv.Spherical_cv_anchor()
+        spherical_input_anchor2.radius = 1.45
+        spherical_input_anchor2.bound_state = False
+        spherical_input_anchor2.bulk_anchor = False
+        cv_input2.input_anchors.append(spherical_input_anchor2)
+        
+        spherical_input_anchor3 = common_cv.Spherical_cv_anchor()
+        spherical_input_anchor3.radius = 1.55
+        spherical_input_anchor3.bound_state = False
+        spherical_input_anchor3.bulk_anchor = True
+        cv_input2.input_anchors.append(spherical_input_anchor3)
+        
+        model_input.cv_inputs.append(cv_input2)
+        
         model_input.browndye_settings_input \
             = common_prepare.Browndye_settings_input()
         model_input.browndye_settings_input.binary_directory = ""
@@ -154,20 +176,8 @@ if __name__ == "__main__":
     root_dir = "/home/lvotapka/tiwary_test"
     
     order_parameter1 = common_cv.Tiwary_cv_distance_order_parameter()
-    order_parameter1.group1 = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 
-                    17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 
-                    31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 
-                    45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 
-                    59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 
-                    73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 
-                    87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 
-                    101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 
-                    112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 
-                    123, 124, 125, 126, 127, 128, 129, 130, 131, 132, 133, 
-                    134, 135, 136, 137, 138, 139, 140, 141, 142, 143, 144, 
-                    145, 146]
-    order_parameter1.group2 = [147, 148, 149, 150, 151, 152, 153, 154, 155, 156, 157, 
-                        158, 159, 160, 161]
+    order_parameter1.group1 = receptor_group
+    order_parameter1.group2 = ligand_group
     order_parameter2 = common_cv.Tiwary_cv_angle_order_parameter()
     order_parameter2.group1 = [0]
     order_parameter2.group2 = [147]
@@ -176,7 +186,7 @@ if __name__ == "__main__":
     order_parameter_weights = [0.99, 0.01]
     
     model_input = create_host_guest_mmvt_bond_order_CV_model_input(
-        root_dir, order_parameters, order_parameter_weights, bd=False)
+        root_dir, order_parameters, order_parameter_weights, bd=True)
     model, xml_path = prepare.prepare(model_input, force_overwrite=True)
     model_dir = os.path.dirname(xml_path)
     model.anchor_rootdir = os.path.abspath(model_dir)
