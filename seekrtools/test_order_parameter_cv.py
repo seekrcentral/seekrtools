@@ -91,9 +91,33 @@ def create_host_guest_mmvt_bond_order_CV_model_input(
     
     model_input.cv_inputs = [cv_input1]
     
-    model_input.cv_inputs[0].input_anchors[-1].bulk_anchor = True
+    model_input.cv_inputs[0].input_anchors[-1].bulk_anchor = False
     
     if bd:
+        model_input.cv_inputs[0].input_anchors[-1].connection_flags = [1]
+        cv_input2 = common_cv.Spherical_cv_input()
+        cv_input2.input_anchors = []
+        spherical_input_anchor1 = common_cv.Spherical_cv_anchor()
+        spherical_input_anchor1.radius = 1.35
+        spherical_input_anchor1.bound_state = False
+        spherical_input_anchor1.bulk_anchor = False
+        spherical_input_anchor1.connection_flags = [1]
+        cv_input2.input_anchors.append(spherical_input_anchor1)
+        
+        spherical_input_anchor2 = common_cv.Spherical_cv_anchor()
+        spherical_input_anchor2.radius = 1.45
+        spherical_input_anchor2.bound_state = False
+        spherical_input_anchor2.bulk_anchor = False
+        cv_input2.input_anchors.append(spherical_input_anchor2)
+        
+        spherical_input_anchor3 = common_cv.Spherical_cv_anchor()
+        spherical_input_anchor3.radius = 1.55
+        spherical_input_anchor3.bound_state = False
+        spherical_input_anchor3.bulk_anchor = True
+        cv_input2.input_anchors.append(spherical_input_anchor3)
+        
+        model_input.cv_inputs.append(cv_input2)
+        
         model_input.browndye_settings_input \
             = common_prepare.Browndye_settings_input()
         model_input.browndye_settings_input.binary_directory = ""
@@ -149,7 +173,7 @@ if __name__ == "__main__":
     order_parameter_weights = [0.99, 0.01]
     
     model_input = create_host_guest_mmvt_bond_order_CV_model_input(
-        root_dir, order_parameters, order_parameter_weights, bd=False)
+        root_dir, order_parameters, order_parameter_weights, bd=True)
     model, xml_path = prepare.prepare(model_input, force_overwrite=True)
     model_dir = os.path.dirname(xml_path)
     model.anchor_rootdir = os.path.abspath(model_dir)

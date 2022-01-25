@@ -331,8 +331,11 @@ def assign_pdb_file_to_model(model, pdb_file):
         between_milestones = True
         for milestone in anchor.milestones:
             cv = model.collective_variables[milestone.cv_index]
+            curdir = os.getcwd()
+            os.chdir(model.anchor_rootdir)
             result = cv.check_mdtraj_within_boundary(traj, milestone.variables, 
                                                      verbose=False)
+            os.chdir(curdir)
             if not result:
                 between_milestones = False
                 break

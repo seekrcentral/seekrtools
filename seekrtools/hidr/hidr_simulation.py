@@ -251,7 +251,10 @@ def add_forces(sim_openmm, model, anchor, restraint_force_constant,
         cv_variables = cv.get_variable_values()
         variables_values_list = [1] + cv_variables \
             + [restraint_force_constant, var_value]
+        curdir = os.getcwd()
+        os.chdir(model.anchor_rootdir)
         myforce = make_restraining_force(cv, variables_values_list)
+        os.chdir(curdir)
         forcenum = sim_openmm.system.addForce(myforce)
         
     return
@@ -484,7 +487,7 @@ def run_SMD_simulation(model, source_anchor_index, destination_anchor_index,
     
 def run_RAMD_simulation(model, force_constant, source_anchor_index, 
                         destination_anchor_indices, lig_indices, rec_indices,
-                        max_num_steps=10000000, traj_mode=False):
+                        max_num_steps=1000000, traj_mode=False):
     """
     Run a random accelerated molecular dynamics (SMD) simulation 
     until every destination anchor index has been reached. The 
@@ -698,7 +701,10 @@ def run_RAMD_simulation(model, force_constant, source_anchor_index,
                 stride = len(anchor_pdb_filenames[i]) // 10
             
             #traj = mdtraj.load(anchor_pdb_filenames[i][::-1])
-            traj = mdtraj.load(anchor_pdb_filenames[i][::-1][::stride])
+            anchor_pdb_filenames_culled = anchor_pdb_filenames[i][::-1][::stride]
+            print("anchor_pdb_filenames_culled", anchor_pdb_filenames_culled)
+            exit()
+            traj = mdtraj.load(anchor_pdb_filenames_culled)
             traj.save_pdb(pdb_swarm_name)
             for filename in anchor_pdb_filenames[i]:
                 os.remove(filename)
