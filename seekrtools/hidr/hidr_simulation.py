@@ -23,7 +23,7 @@ try:
     import openmm.unit as unit
 except ModuleNotFoundError:
     import simtk.unit as unit
-from openmm_ramd import openmm_ramd
+#from openmm_ramd import openmm_ramd
 import seekr2.modules.common_base as base
 import seekr2.modules.common_sim_openmm as common_sim_openmm
 
@@ -484,11 +484,11 @@ def run_SMD_simulation(model, source_anchor_index, destination_anchor_index,
     print("saving new PDB file:", output_pdb_file)
     parm.save(output_pdb_file, overwrite=True)
     return
-    
+"""
 def run_RAMD_simulation(model, force_constant, source_anchor_index, 
                         destination_anchor_indices, lig_indices, rec_indices,
                         max_num_steps=1000000, traj_mode=False):
-    """
+    ""
     Run a random accelerated molecular dynamics (SMD) simulation 
     until every destination anchor index has been reached. The 
     resulting structure will be saved within the destination anchor 
@@ -505,7 +505,7 @@ def run_RAMD_simulation(model, force_constant, source_anchor_index,
         The index, within the model, of the anchor which is the final
         destination of this SMD simulation.
         
-    """
+    ""
     steps_per_RAMD_update = 50
     steps_per_anchor_check = 250
     RAMD_cutoff_distance = 0.0025 * unit.nanometer
@@ -712,3 +712,4 @@ def run_RAMD_simulation(model, force_constant, source_anchor_index,
             hidr_base.change_anchor_pdb_filename(anchor, pdb_swarm_name)
     
     return
+"""
