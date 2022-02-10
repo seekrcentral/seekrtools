@@ -39,4 +39,5 @@ if __name__ == "__main__":
     
     old_pqr_filename = sys.argv[1]
     new_pqr_filename = sys.argv[2]
+    pqr_resid_for_each_atom(old_pqr_filename, new_pqr_filename)
     
