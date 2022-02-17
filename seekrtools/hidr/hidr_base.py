@@ -356,4 +356,4 @@ def assign_pdb_file_to_model(model, pdb_file):
             change_anchor_box_vectors(anchor, box_vectors)
             
             break
-    return
+    return anchor.index

@@ -136,12 +136,12 @@ def add_simulation(sim_openmm, model, topology, positions, box_vectors,
     Assign the OpenMM simulation object.
     """
     sim_openmm.simulation = openmm_app.Simulation(
-        topology.topology, sim_openmm.system, 
+        topology, sim_openmm.system, 
         sim_openmm.integrator, sim_openmm.platform, 
         sim_openmm.properties)
     
     if positions is not None:
-        sim_openmm.simulation.context.setPositions(positions.positions)
+        sim_openmm.simulation.context.setPositions(positions)
         # For an unknown reason, assigning velocities caused numerical 
         #  instability
         #sim_openmm.simulation.context.setVelocitiesToTemperature(
@@ -333,7 +333,7 @@ def run_min_equil_anchor(model, anchor_index, equilibration_steps,
     
     # TODO: this might cause errors with older versions of parmed. 
     # adapt the openmm import if necessary.
-    parm = parmed.openmm.load_topology(topology.topology, system)
+    parm = parmed.openmm.load_topology(topology, system)
     parm.positions = positions
     parm.box_vectors = state.getPeriodicBoxVectors()
     parm.save(output_pdb_file, overwrite=True)
@@ -478,7 +478,7 @@ def run_SMD_simulation(model, source_anchor_index, destination_anchor_index,
         model.anchor_rootdir, destination_anchor.directory,
         destination_anchor.building_directory,hidr_output_pdb_name)
     
-    parm = parmed.openmm.load_topology(topology.topology, system)
+    parm = parmed.openmm.load_topology(topology, system)
     parm.positions = positions
     parm.box_vectors = box_vectors
     print("saving new PDB file:", output_pdb_file)
@@ -520,7 +520,7 @@ def run_RAMD_simulation(model, force_constant, source_anchor_index,
     time_step = add_integrator(sim_openmm, model)
     common_sim_openmm.add_platform(sim_openmm, model)
     simulation = openmm_ramd.RAMDSimulation(
-        topology.topology, system, sim_openmm.integrator, force_constant, lig_indices, 
+        topology, system, sim_openmm.integrator, force_constant, lig_indices, 
         rec_indices, sim_openmm.platform, sim_openmm.properties)
     
     simulation.context.setPositions(positions.positions)
@@ -627,7 +627,7 @@ def run_RAMD_simulation(model, force_constant, source_anchor_index,
                                 and not os.path.exists(output_pdb_file):
                             hidr_base.change_anchor_pdb_filename(
                                 destination_anchor, hidr_output_pdb_name)
-                            parm = parmed.openmm.load_topology(topology.topology, system)
+                            parm = parmed.openmm.load_topology(topology, system)
                             parm.positions = positions
                             parm.box_vectors = box_vectors.to_quantity()
                             print("saving preliminary PDB file:", output_pdb_file)
@@ -645,7 +645,7 @@ def run_RAMD_simulation(model, force_constant, source_anchor_index,
                             model.anchor_rootdir, old_anchor.directory,
                             old_anchor.building_directory, hidr_output_pdb_name)
                         
-                        parm = parmed.openmm.load_topology(topology.topology, system)
+                        parm = parmed.openmm.load_topology(topology, system)
                         parm.positions = old_positions
                         parm.box_vectors = box_vectors.to_quantity()
                         print("saving previous anchor PDB file:", output_pdb_file)
