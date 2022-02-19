@@ -35,7 +35,7 @@ def create_sim(model):
     skip_minimization = False
     anchor = model.anchors[anchor_index]
     sim_openmm = hidr_simulation.HIDR_sim_openmm()
-    system, topology, positions, box_vectors \
+    system, topology, positions, box_vectors, num_frames \
         = common_sim_openmm.create_openmm_system(
             sim_openmm, model, anchor)
     sim_openmm.system = system

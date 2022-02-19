@@ -304,7 +304,7 @@ def run_min_equil_anchor(model, anchor_index, equilibration_steps,
     
     anchor = model.anchors[anchor_index]
     sim_openmm = HIDR_sim_openmm()
-    system, topology, positions, box_vectors \
+    system, topology, positions, box_vectors, num_frames \
         = common_sim_openmm.create_openmm_system(sim_openmm, model, anchor)
     sim_openmm.system = system
     time_step = add_integrator(sim_openmm, model)
@@ -362,7 +362,7 @@ def run_window(model, anchor, restraint_force_constant, cv_list, window_values,
     total_number_of_steps = steps_in_window
     
     sim_openmm = HIDR_sim_openmm()
-    system, topology, positions, box_vectors \
+    system, topology, positions, box_vectors, num_frames \
         = common_sim_openmm.create_openmm_system(sim_openmm, model, 
                                                  anchor)
     sim_openmm.system = system
@@ -513,7 +513,7 @@ def run_RAMD_simulation(model, force_constant, source_anchor_index,
     energy_reporter_interval = 50000
     source_anchor = model.anchors[source_anchor_index]
     sim_openmm = HIDR_sim_openmm()
-    system, topology, positions, box_vectors \
+    system, topology, positions, box_vectors, num_frames \
         = common_sim_openmm.create_openmm_system(sim_openmm, model, 
                                                  source_anchor)
     sim_openmm.system = system
