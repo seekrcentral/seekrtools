@@ -26,7 +26,7 @@
                     <value>-1.0</value>
                     <lower_milestone_radius/>
                     <upper_milestone_radius/>
-                    <starting_positions numpy="float32">[[0.0, -1.0, 0.0]]</starting_positions>
+                    <starting_positions numpy="float32">[[[0.0, -1.0, 0.0]]]</starting_positions>
                     <bound_state>True</bound_state>
                     <bulk_anchor>False</bulk_anchor>
                 </input_anchor>
@@ -34,7 +34,7 @@
                     <value>0.0</value>
                     <lower_milestone_radius/>
                     <upper_milestone_radius/>
-                    <starting_positions numpy="float32">[[0.0, 0.0, 0.0]]</starting_positions>
+                    <starting_positions numpy="float32">[[[0.0, 0.0, 0.0]]]</starting_positions>
                     <bound_state>False</bound_state>
                     <bulk_anchor>False</bulk_anchor>
                 </input_anchor>
@@ -42,7 +42,7 @@
                     <value>1.0</value>
                     <lower_milestone_radius/>
                     <upper_milestone_radius/>
-                    <starting_positions numpy="float32">[[0.0, 1.0, 0.0]]</starting_positions>
+                    <starting_positions numpy="float32">[[[0.0, 1.0, 0.0]]]</starting_positions>
                     <bound_state>False</bound_state>
                     <bulk_anchor>True</bulk_anchor>
                 </input_anchor>

@@ -86,12 +86,23 @@ class Toy_plot():
         for anchor_index in anchor_indices:
             anchor = self.model.anchors[anchor_index]
             pdb_path = os.path.join(rootdir, anchor.directory, anchor.building_directory, "toy.pdb")
-            dcd_glob = os.path.join(rootdir, anchor.directory, anchor.production_directory, "*.dcd")
-            dcd_files = glob.glob(dcd_glob)
-            traj = mdtraj.load(dcd_files, top=pdb_path)
-            positions_list.append(traj.xyz)
+            frames_glob = os.path.join(rootdir, anchor.directory, anchor.production_directory, "mmvt1.*dcd")
+            num_frames = len(glob.glob(frames_glob))
+            assert num_frames > 0, "No DCD detected for anchor {}.".format(anchor_index)
+            positions_frame_list = []
+            for frame in range(num_frames):
+                if num_frames == 1:
+                    dcd_file_glob = "*.dcd".format(frame)
+                else:
+                    dcd_file_glob = "*.swarm_{}.dcd".format(frame)
+                dcd_glob = os.path.join(rootdir, anchor.directory, anchor.production_directory, dcd_file_glob)
+                dcd_files = glob.glob(dcd_glob)
+                traj = mdtraj.load(dcd_files, top=pdb_path)
+                positions_frame_list.append(traj.xyz)
+                
+            positions_list.append(positions_frame_list)
         
-        self.num_steps = len(positions_list[0])
+        self.num_steps = len(positions_list[0][0])
         return positions_list
     
     def traj_walk(self, positions_list):
@@ -101,11 +112,12 @@ class Toy_plot():
         """
         walks = []
         for positions_anchor in positions_list:
-            walk = []
-            for positions_frame in positions_anchor:
-                walk.append(positions_frame[0,0:2])
+            for positions_swarm in positions_anchor:
+                walk = []
+                for positions_frame in positions_swarm:
+                    walk.append(positions_frame[0,0:2])
                 
-            walks.append(np.array(walk))
+                walks.append(np.array(walk))
             
         return walks
     
@@ -123,7 +135,7 @@ class Toy_plot():
         
         return lines
     
-    def make_graphical_objects(self, num_anchors):
+    def make_graphical_objects(self, num_walks):
         """
         Create the circles and lines - graphical objects shown in the
         animation.
@@ -131,7 +143,7 @@ class Toy_plot():
         self.circle1_list = []
         self.circle2_list = []
         lines = []
-        for i in range(num_anchors):
+        for i in range(num_walks):
             circle1 = plt.Circle((0,0), 0.05, color="r", zorder=2.5)
             circle2 = plt.Circle((0,0), 0.025, color="k", zorder=2.5)
             self.ax.add_patch(circle1)
@@ -150,7 +162,8 @@ class Toy_plot():
         """
         positions_list = self.load_trajs(animating_anchor_indices)
         walks = self.traj_walk(positions_list)
-        lines = self.make_graphical_objects(len(animating_anchor_indices))
+        print("len(walks):", len(walks))
+        lines = self.make_graphical_objects(len(walks))
         
         ani = animation.FuncAnimation(self.fig, self.update_lines, fargs=(walks, lines), frames=self.num_steps, interval=20, repeat=False)
         return ani
