@@ -2,7 +2,7 @@
 <model_input class='Model_input'>
     <calculation_type>mmvt</calculation_type>
     <calculation_settings class="MMVT_input_settings">
-        <md_output_interval>500</md_output_interval>
+        <md_output_interval>50</md_output_interval>
         <md_steps_per_anchor>500000</md_steps_per_anchor>
     </calculation_settings>
     <temperature>300.0</temperature>

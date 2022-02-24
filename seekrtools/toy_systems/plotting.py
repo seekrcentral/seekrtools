@@ -19,7 +19,7 @@ except ModuleNotFoundError:
 import seekr2.modules.common_base as base
 
 class Toy_plot():
-    def __init__(self, model, title, boundaries, landscape_resolution=100):
+    def __init__(self, model, title, boundaries, landscape_resolution=100, stride=1):
         """
         Object for plotting toy SEEKR calculations.
         """
@@ -34,6 +34,7 @@ class Toy_plot():
         self.fig = fig
         self.ax = ax
         self.num_steps = 0
+        self.stride = stride
         
         return
 
@@ -126,12 +127,27 @@ class Toy_plot():
         This function is called every step of the animation to determine
         where to draw the animated points and lines.
         """
+        
+        index = self.stride * num
+        for i, (walk, line) in enumerate(zip(walks,lines)):
+            circle1 = self.circle1_list[i]
+            circle2 = self.circle2_list[i]
+            if index < len(walk):
+                line.set_data(walk[:index+1, 0], walk[:index+1, 1])
+                circle1.center=(walk[index, 0], walk[index, 1])
+                circle2.center=(walk[index, 0], walk[index, 1])
+            else:
+                line.set_data(walk[:, 0], walk[:, 1])
+                circle1.center=(walk[-1, 0], walk[-1, 1])
+                circle2.center=(walk[-1, 0], walk[-1, 1])
+        """
         for i, (walk, line) in enumerate(zip(walks,lines)):
             line.set_data(walk[:num+1, 0], walk[:num+1, 1])
             circle1 = self.circle1_list[i]
             circle2 = self.circle2_list[i]
             circle1.center=(walk[num, 0], walk[num, 1])
             circle2.center=(walk[num, 0], walk[num, 1])
+        """
         
         return lines
     
@@ -168,7 +184,7 @@ class Toy_plot():
         ani = animation.FuncAnimation(self.fig, self.update_lines, fargs=(walks, lines), frames=self.num_steps, interval=20, repeat=False)
         return ani
 
-def draw_linear_milestones(toy_plot, milestone_function):
+def draw_linear_milestones(toy_plot, milestone_cv_functions, anchors=None):
     """
     Create a series of milestones linear in shape.
     """
@@ -177,13 +193,21 @@ def draw_linear_milestones(toy_plot, milestone_function):
     #x2 = toy_plot.boundaries[0,1] * 0.1
     x1 = 0
     x2 = 0.1
-    values = set()
+    values = []
+    cv_indices = []
     for anchor in model.anchors:
+        if anchors is not None and anchor.index not in anchors:
+            continue
         for milestone in anchor.milestones:
             value = milestone.variables["value"]
-            values.add(value)
+            if len(values) > 0:
+                if value == values[-1] and milestone.cv_index == cv_indices[-1]:
+                    continue
+            values.append(value)
+            cv_indices.append(milestone.cv_index)
     
-    for value in values:
+    for value, cv_index in zip(values, cv_indices):
+        milestone_function = milestone_cv_functions[cv_index]
         x = x1
         y1 = eval(milestone_function)
         x = x2
@@ -198,8 +222,8 @@ def main():
     model = base.load_model(model_file)
     boundaries = np.array([[-1.0, 1.0], [-1.0, 1.0]])
     toy_plot = Toy_plot(model, title, boundaries)
-    milestone_function = "value"
-    draw_linear_milestones(toy_plot, milestone_function)
+    milestone_functions = ["value"]
+    draw_linear_milestones(toy_plot, milestone_functions)
     ani = toy_plot.animate_trajs(animating_anchor_indices=[0,1])
     plt.show()
 
