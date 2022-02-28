@@ -435,11 +435,19 @@ def run_SMD_simulation(model, source_anchor_index, destination_anchor_index,
     steps_in_window = int(abs(distance) / (translation_velocity * timestep))
     assert steps_in_window > 0
     
+    start_time = time.time()
     for i, window_values in enumerate(windows_list_zipped):
         print("running_window:", window_values, "steps_in_window:", steps_in_window)
         system, topology, positions, box_vectors = run_window(
             model, source_anchor, restraint_force_constant, cv_id_list, 
             window_values, steps_in_window)
+    
+    total_time = time.time() - start_time
+    simulation_in_ns = steps_in_window * len(windows_list_zipped) * timestep \
+        * 1e-3
+    total_time_in_days = total_time / (86400.0)
+    ns_per_day = simulation_in_ns / total_time_in_days
+    print("Benchmark:", ns_per_day, "ns/day")
     
     # assign the new model attributes, and copy over the building files
     
@@ -481,6 +489,7 @@ def run_SMD_simulation(model, source_anchor_index, destination_anchor_index,
     parm = parmed.openmm.load_topology(topology, system)
     parm.positions = positions
     parm.box_vectors = box_vectors
+    
     print("saving new PDB file:", output_pdb_file)
     parm.save(output_pdb_file, overwrite=True)
     return
