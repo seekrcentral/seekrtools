@@ -583,7 +583,7 @@ def run_RAMD_simulation(model, force_constant, source_anchor_index,
                     if i in destination_anchor_indices:
                         if i == destination_anchor_index:
                             continue
-                        print("Entered anchor {}. counter: {}".format(i, counter))
+                        print("Entered anchor {}. step: {}".format(i, counter))
                         destination_anchor_index = i
                         destination_anchor = model.anchors[destination_anchor_index]
                         
@@ -674,6 +674,11 @@ def run_RAMD_simulation(model, force_constant, source_anchor_index,
             
         counter += steps_per_RAMD_update
     
+    total_time = time.time() - start_time
+    simulation_in_ns = counter * time_step * 1e-3
+    total_time_in_days = total_time / (86400.0)
+    ns_per_day = simulation_in_ns / total_time_in_days
+    
     for i, anchor in enumerate(model.anchors):
         if anchor.bulkstate:
             continue
@@ -711,4 +716,4 @@ def run_RAMD_simulation(model, force_constant, source_anchor_index,
             
             hidr_base.change_anchor_pdb_filename(anchor, pdb_swarm_name)
     
-    return
+    return ns_per_day

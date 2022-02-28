@@ -197,11 +197,12 @@ def hidr(model, destination, pdb_files=[], dry_run=False, equilibration_steps=0,
             rec_indices = model.collective_variables[0].group1
             lig_indices = model.collective_variables[0].group2
             
-            hidr_simulation.run_RAMD_simulation(
+            ns_per_day = hidr_simulation.run_RAMD_simulation(
                 model, ramd_force_magnitude, source_anchor_index, 
                 destination_anchor_indices, lig_indices, rec_indices, 
                 traj_mode=traj_mode)
             # save the new model file and check the generated structures
+            print("Benchmark:", ns_per_day, "ns/day")
             hidr_base.save_new_model(model, save_old_model=True)
             
         else:
