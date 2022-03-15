@@ -140,14 +140,9 @@ class Toy_plot():
                 line.set_data(walk[:, 0], walk[:, 1])
                 circle1.center=(walk[-1, 0], walk[-1, 1])
                 circle2.center=(walk[-1, 0], walk[-1, 1])
-        """
-        for i, (walk, line) in enumerate(zip(walks,lines)):
-            line.set_data(walk[:num+1, 0], walk[:num+1, 1])
-            circle1 = self.circle1_list[i]
-            circle2 = self.circle2_list[i]
-            circle1.center=(walk[num, 0], walk[num, 1])
-            circle2.center=(walk[num, 0], walk[num, 1])
-        """
+        
+        time_str = "{:.2f} ps".format((self.stride + index) * self.model.openmm_settings.langevin_integrator.timestep * self.model.calculation_settings.trajectory_reporter_interval)
+        self.frame_text.set_text(time_str)
         
         return lines
     
@@ -158,6 +153,8 @@ class Toy_plot():
         """
         self.circle1_list = []
         self.circle2_list = []
+        font = {"weight":"bold"}
+        self.frame_text = plt.text(-1.4, 1.9, "0 ns", fontdict=font)
         lines = []
         for i in range(num_walks):
             circle1 = plt.Circle((0,0), 0.05, color="r", zorder=2.5)
@@ -178,10 +175,10 @@ class Toy_plot():
         """
         positions_list = self.load_trajs(animating_anchor_indices)
         walks = self.traj_walk(positions_list)
-        print("len(walks):", len(walks))
         lines = self.make_graphical_objects(len(walks))
         
-        ani = animation.FuncAnimation(self.fig, self.update_lines, fargs=(walks, lines), frames=self.num_steps, interval=20, repeat=False)
+        num_frames = self.num_steps // self.stride
+        ani = animation.FuncAnimation(self.fig, self.update_lines, fargs=(walks, lines), frames=num_frames, interval=20, repeat=False)
         return ani
 
 def draw_linear_milestones(toy_plot, milestone_cv_functions, anchors=None):

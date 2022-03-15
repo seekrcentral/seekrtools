@@ -41,7 +41,12 @@ def find_anchors_with_starting_structure(model):
     anchors_with_starting_structures = []
     for i, anchor in enumerate(model.anchors):
         assert i == anchor.index
-        if anchor.amber_params is not None:
+        if anchor.__class__.__name__ in ["MMVT_toy_anchor"]:
+            if len(anchor.starting_positions) > 0:
+                anchors_with_starting_structures.append(anchor.index)
+        
+        
+        elif anchor.amber_params is not None:
             if anchor.amber_params.pdb_coordinates_filename:
                 anchors_with_starting_structures.append(anchor.index)
         
@@ -210,7 +215,13 @@ def check_settling_anchors(model, complete_anchor_list, force_overwrite=False):
         output_traj_pdb_file = os.path.join(
             model.anchor_rootdir, anchor.directory, anchor.building_directory,
             settled_traj_filename)
-        if anchor.amber_params is not None:
+        
+        
+        if anchor.__class__.__name__ in ["MMVT_toy_anchor"]:
+            if anchor.starting_positions is not None:
+                continue
+        
+        elif anchor.amber_params is not None:
             if anchor.amber_params.pdb_coordinates_filename:
                 pdb_coords_filename \
                     = anchor.amber_params.pdb_coordinates_filename

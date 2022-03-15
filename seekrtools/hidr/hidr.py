@@ -7,7 +7,7 @@ and, closer to further, pulls the system towards all the anchors within the
 SEEKR model until starting structures exist in all of them. This is 
 accomplished using steered molecular dynamics (SMD) simulations.
 """
-
+import os
 import argparse
 import tempfile
 import glob
@@ -47,7 +47,7 @@ def hidr(model, destination, pdb_files=[], dry_run=False, equilibration_steps=0,
          ramd_force_magnitude=14.0*unit.kilocalories_per_mole/unit.nanometers, 
          translation_velocity=0.01*unit.nanometers/unit.nanoseconds, 
          settling_steps=0, settling_frames=1, skip_checks=False, 
-         force_overwrite=False, traj_mode=False):
+         force_overwrite=False, traj_mode=False, smd_dcd_interval=None):
     """
     Run the full HIDR calculation for a model.
     
@@ -100,6 +100,13 @@ def hidr(model, destination, pdb_files=[], dry_run=False, equilibration_steps=0,
         force_overwrite)
     settling_anchor_list = hidr_base.check_settling_anchors(
         model, complete_anchor_list, force_overwrite)
+    
+    smd_dcd_filename = os.path.join(
+        model.anchor_rootdir, hidr_simulation.SMD_DCD_NAME)
+    if force_overwrite and os.path.exists(smd_dcd_filename):
+        print("Force deletion of file:", smd_dcd_filename)
+        os.remove(smd_dcd_filename)
+        
     
     # Given the destination command, generate a recipe of instructions for
     #  reaching all destination anchors
@@ -182,7 +189,8 @@ def hidr(model, destination, pdb_files=[], dry_run=False, equilibration_steps=0,
                 source_anchor_index, destination_anchor_index))
             hidr_simulation.run_SMD_simulation(
                 model, source_anchor_index, destination_anchor_index, 
-                restraint_force_constant, translation_velocity)
+                restraint_force_constant, translation_velocity, 
+                smd_dcd_interval)
             
             # save the new model file and check the generated structures
             hidr_base.save_new_model(model, save_old_model=False)

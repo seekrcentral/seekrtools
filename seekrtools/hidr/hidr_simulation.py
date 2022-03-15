@@ -23,7 +23,7 @@ try:
     import openmm.unit as unit
 except ModuleNotFoundError:
     import simtk.unit as unit
-#from openmm_ramd import openmm_ramd
+from openmm_ramd import openmm_ramd
 import seekr2.modules.common_base as base
 import seekr2.modules.common_sim_openmm as common_sim_openmm
 
@@ -32,6 +32,7 @@ import seekrtools.hidr.hidr_base as hidr_base
 NUM_WINDOWS=10
 NUM_EQUIL_FRAMES=10
 EQUIL_UPDATE_INTERVAL=5000
+SMD_DCD_NAME="smd.dcd"
 #EQUILIBRATED_NAME = "hidr_equilibrated.pdb"
 #EQUILIBRATED_TRAJ_NAME = "hidr_traj_equilibrated.pdb"
 #SMD_NAME = "hidr_smd_at_{}.pdb"
@@ -158,7 +159,8 @@ def add_simulation(sim_openmm, model, topology, positions, box_vectors,
 
 def handle_reporters(model, anchor, sim_openmm, trajectory_reporter_interval, 
                      energy_reporter_interval, 
-                     traj_filename_base=EQUILIBRATED_TRAJ_NAME):
+                     traj_filename_base=EQUILIBRATED_TRAJ_NAME, 
+                     smd_dcd_filename=None, smd_dcd_interval=None):
     """
     If relevant, add the necessary state and trajectory reporters to
     the simulation object.
@@ -177,6 +179,14 @@ def handle_reporters(model, anchor, sim_openmm, trajectory_reporter_interval,
             sim_openmm.energy_reporter(
                 sys.stdout, energy_reporter_interval, step=True, 
                 potentialEnergy=True, temperature=True, volume=True))
+    
+    if smd_dcd_filename is not None:
+        if os.path.exists(smd_dcd_filename):
+            append = True
+        else:
+            append = False
+        simulation.reporters.append(openmm_app.DCDReporter(
+            smd_dcd_filename, smd_dcd_interval, append))
         
     return
 
@@ -352,7 +362,7 @@ def run_min_equil_anchor(model, anchor_index, equilibration_steps,
     return ns_per_day
 
 def run_window(model, anchor, restraint_force_constant, cv_list, window_values,
-               steps_in_window):
+               steps_in_window, smd_dcd_filename, smd_dcd_interval):
     """
     Run the window of an SMD simulation, where the restraint equilibrium
     value has been moved incrementally to a new position for a short
@@ -365,6 +375,11 @@ def run_window(model, anchor, restraint_force_constant, cv_list, window_values,
     system, topology, positions, box_vectors, num_frames \
         = common_sim_openmm.create_openmm_system(sim_openmm, model, 
                                                  anchor)
+    if anchor.__class__.__name__ in ["MMVT_toy_anchor"]:
+        enforcePeriodicBox = False
+    else:
+        enforcePeriodicBox = True
+        
     sim_openmm.system = system
     time_step = add_integrator(sim_openmm, model)
     common_sim_openmm.add_platform(sim_openmm, model)
@@ -374,16 +389,20 @@ def run_window(model, anchor, restraint_force_constant, cv_list, window_values,
                    skip_minimization=True)
     handle_reporters(
         model, anchor, sim_openmm, trajectory_reporter_interval=None, 
-        energy_reporter_interval=energy_reporter_interval)
+        energy_reporter_interval=energy_reporter_interval, 
+        smd_dcd_filename=smd_dcd_filename,
+        smd_dcd_interval=smd_dcd_interval)
     sim_openmm.simulation.step(total_number_of_steps)
     state = sim_openmm.simulation.context.getState(
-        getPositions = True, getVelocities = False, enforcePeriodicBox = True)
+        getPositions=True, getVelocities=False, 
+        enforcePeriodicBox=enforcePeriodicBox)
     positions = state.getPositions()
     box_vectors = state.getPeriodicBoxVectors()
     return system, topology, positions, box_vectors
     
 def run_SMD_simulation(model, source_anchor_index, destination_anchor_index, 
-                         restraint_force_constant, translation_velocity):
+                         restraint_force_constant, translation_velocity,
+                         smd_dcd_interval=None):
     """
     Run a steered molecular dynamics (SMD) simulation between a source 
     anchor and a destination anchor. The resulting structure will be
@@ -409,6 +428,12 @@ def run_SMD_simulation(model, source_anchor_index, destination_anchor_index,
     """
     source_anchor = model.anchors[source_anchor_index]
     destination_anchor = model.anchors[destination_anchor_index]
+    
+    if smd_dcd_interval is not None:
+        smd_dcd_filename = os.path.join(
+            model.anchor_rootdir, SMD_DCD_NAME)
+    else:
+        smd_dcd_filename = None
     
     cv_id_list = []
     windows_list_unzipped = []
@@ -440,58 +465,65 @@ def run_SMD_simulation(model, source_anchor_index, destination_anchor_index,
         print("running_window:", window_values, "steps_in_window:", steps_in_window)
         system, topology, positions, box_vectors = run_window(
             model, source_anchor, restraint_force_constant, cv_id_list, 
-            window_values, steps_in_window)
+            window_values, steps_in_window, smd_dcd_filename, smd_dcd_interval)
     
     total_time = time.time() - start_time
-    simulation_in_ns = steps_in_window * len(windows_list_zipped) * timestep \
-        * 1e-3
+    simulation_in_ns = steps_in_window * len(list(windows_list_zipped)) \
+        * timestep.value_in_unit(unit.picosecond) * 1e-3
     total_time_in_days = total_time / (86400.0)
     ns_per_day = simulation_in_ns / total_time_in_days
     print("Benchmark:", ns_per_day, "ns/day")
     
     # assign the new model attributes, and copy over the building files
     
-    destination_anchor.amber_params = deepcopy(source_anchor.amber_params)
-    if destination_anchor.amber_params is not None:
-        src_prmtop_filename = os.path.join(
-            model.anchor_rootdir, source_anchor.directory, 
-            source_anchor.building_directory,
-            source_anchor.amber_params.prmtop_filename)
-        dest_prmtop_filename = os.path.join(
-            model.anchor_rootdir, destination_anchor.directory, 
-            destination_anchor.building_directory,
-            destination_anchor.amber_params.prmtop_filename)
-        if os.path.exists(dest_prmtop_filename):
-            os.remove(dest_prmtop_filename)
-        copyfile(src_prmtop_filename, dest_prmtop_filename)
-        #destination_anchor.amber_params.box_vectors = base.Box_vectors()
-        #destination_anchor.amber_params.box_vectors.from_quantity(box_vectors)
+    if source_anchor.__class__.__name__ in ["MMVT_toy_anchor"]:
+        # Get current position
+        new_positions = np.array([positions.value_in_unit(unit.nanometers)])
+        print("new_positions:", new_positions)
+        destination_anchor.starting_positions = new_positions
         
-    destination_anchor.forcefield_params = deepcopy(source_anchor.forcefield_params)
-    if destination_anchor.forcefield_params is not None:
-        pass
-        # TODO: more here for forcefield
-    destination_anchor.charmm_params = deepcopy(source_anchor.charmm_params)
-    if destination_anchor.charmm_params is not None:
-        pass
-        # TODO: more here for charmm
+    else:
+        destination_anchor.amber_params = deepcopy(source_anchor.amber_params)
+        if destination_anchor.amber_params is not None:
+            src_prmtop_filename = os.path.join(
+                model.anchor_rootdir, source_anchor.directory, 
+                source_anchor.building_directory,
+                source_anchor.amber_params.prmtop_filename)
+            dest_prmtop_filename = os.path.join(
+                model.anchor_rootdir, destination_anchor.directory, 
+                destination_anchor.building_directory,
+                destination_anchor.amber_params.prmtop_filename)
+            if os.path.exists(dest_prmtop_filename):
+                os.remove(dest_prmtop_filename)
+            copyfile(src_prmtop_filename, dest_prmtop_filename)
+            #destination_anchor.amber_params.box_vectors = base.Box_vectors()
+            #destination_anchor.amber_params.box_vectors.from_quantity(box_vectors)
+            
+        destination_anchor.forcefield_params = deepcopy(source_anchor.forcefield_params)
+        if destination_anchor.forcefield_params is not None:
+            pass
+            # TODO: more here for forcefield
+        destination_anchor.charmm_params = deepcopy(source_anchor.charmm_params)
+        if destination_anchor.charmm_params is not None:
+            pass
+            # TODO: more here for charmm
     
-    hidr_base.change_anchor_box_vectors(
-        destination_anchor, box_vectors)
-    
-    hidr_base.change_anchor_pdb_filename(
-        destination_anchor, hidr_output_pdb_name)
-    
-    output_pdb_file = os.path.join(
-        model.anchor_rootdir, destination_anchor.directory,
-        destination_anchor.building_directory,hidr_output_pdb_name)
-    
-    parm = parmed.openmm.load_topology(topology, system)
-    parm.positions = positions
-    parm.box_vectors = box_vectors
-    
-    print("saving new PDB file:", output_pdb_file)
-    parm.save(output_pdb_file, overwrite=True)
+        hidr_base.change_anchor_box_vectors(
+            destination_anchor, box_vectors)
+        
+        hidr_base.change_anchor_pdb_filename(
+            destination_anchor, hidr_output_pdb_name)
+        
+        output_pdb_file = os.path.join(
+            model.anchor_rootdir, destination_anchor.directory,
+            destination_anchor.building_directory,hidr_output_pdb_name)
+        
+        parm = parmed.openmm.load_topology(topology, system)
+        parm.positions = positions
+        parm.box_vectors = box_vectors
+        
+        print("saving new PDB file:", output_pdb_file)
+        parm.save(output_pdb_file, overwrite=True)
     return
 
 def run_RAMD_simulation(model, force_constant, source_anchor_index, 
@@ -532,7 +564,7 @@ def run_RAMD_simulation(model, force_constant, source_anchor_index,
         topology, system, sim_openmm.integrator, force_constant, lig_indices, 
         rec_indices, sim_openmm.platform, sim_openmm.properties)
     
-    simulation.context.setPositions(positions.positions)
+    simulation.context.setPositions(positions)
     
     anchor_pdb_counters = []
     anchor_pdb_filenames = []
@@ -550,7 +582,7 @@ def run_RAMD_simulation(model, force_constant, source_anchor_index,
                      energy_reporter_interval, 
                      traj_filename_base=RAMD_TRAJ_NAME)
     
-    new_com = openmm_ramd.base.get_ligand_com(system, positions.positions, lig_indices)
+    new_com = openmm_ramd.base.get_ligand_com(system, positions, lig_indices)
     start_time = time.time()
     counter = 0
     old_positions = None
