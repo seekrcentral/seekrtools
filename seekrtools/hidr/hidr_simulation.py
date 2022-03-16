@@ -23,7 +23,7 @@ try:
     import openmm.unit as unit
 except ModuleNotFoundError:
     import simtk.unit as unit
-from openmm_ramd import openmm_ramd
+#from openmm_ramd import openmm_ramd
 import seekr2.modules.common_base as base
 import seekr2.modules.common_sim_openmm as common_sim_openmm
 
