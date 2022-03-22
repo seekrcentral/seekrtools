@@ -6,9 +6,14 @@ import os
 import glob
 from shutil import copyfile
 
+import numpy as np
 import mdtraj
 import seekr2.modules.common_base as base
 import seekr2.modules.check as check
+try:
+    import openmm.unit as unit
+except ModuleNotFoundError:
+    import simtk.unit as unit
 
 HIDR_MODEL_GLOB = "model_pre_hidr_*.xml"
 HIDR_MODEL_BASE = "model_pre_hidr_{}.xml"
@@ -368,3 +373,25 @@ def assign_pdb_file_to_model(model, pdb_file):
             
             break
     return anchor.index
+
+def assign_toy_coords_to_model(model, toy_coordinates):
+    """
+    
+    """
+    for anchor in model.anchors:
+        between_milestones = True
+        positions = unit.Quantity([toy_coordinates], unit=unit.nanometers)
+        for milestone in anchor.milestones:
+            cv = model.collective_variables[milestone.cv_index]
+            result = cv.check_positions_within_boundary(
+                positions, milestone.variables)
+            if not result:
+                between_milestones = False
+                break
+            
+        if between_milestones:
+            anchor.starting_positions = np.array(
+                [positions.value_in_unit(unit.nanometers)])
+            return anchor.index
+    raise Exception("No starting anchor found for coordinates.")
+    

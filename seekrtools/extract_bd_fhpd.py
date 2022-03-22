@@ -1,5 +1,10 @@
 """
+extract_bd_fhpd.py
 
+Write a multi-frame PDB file that contains the first hitting point
+distribution (FHPD) encounter complexes of the BD stage of a SEEKR
+calculation. The resulting file will be written to the b_surface
+directory.
 """
 
 import re

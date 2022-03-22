@@ -178,7 +178,7 @@ class Toy_plot():
         lines = self.make_graphical_objects(len(walks))
         
         num_frames = self.num_steps // self.stride
-        ani = animation.FuncAnimation(self.fig, self.update_lines, fargs=(walks, lines), frames=num_frames, interval=20, repeat=False)
+        ani = animation.FuncAnimation(self.fig, self.update_lines, fargs=(walks, lines), frames=num_frames, interval=60, repeat=False)
         return ani
 
 def draw_linear_milestones(toy_plot, milestone_cv_functions, anchors=None):
@@ -188,8 +188,10 @@ def draw_linear_milestones(toy_plot, milestone_cv_functions, anchors=None):
     model = toy_plot.model
     #x1 = toy_plot.boundaries[0,0] * 0.1
     #x2 = toy_plot.boundaries[0,1] * 0.1
-    x1 = 0
-    x2 = 0.1
+    x1_ref = 0
+    x2_ref = 0.1
+    y1_ref = 0
+    y2_ref = 0.1
     values = []
     cv_indices = []
     for anchor in model.anchors:
@@ -205,11 +207,19 @@ def draw_linear_milestones(toy_plot, milestone_cv_functions, anchors=None):
     
     for value, cv_index in zip(values, cv_indices):
         milestone_function = milestone_cv_functions[cv_index]
-        x = x1
-        y1 = eval(milestone_function)
-        x = x2
-        y2 = eval(milestone_function)
-        plt.axline((x1, y1), (x2, y2), color="k", lw=3)
+        if "x=" in milestone_function:
+            milestone_function = milestone_function.strip("x=")
+            y = y1_ref
+            x1 = eval(milestone_function)
+            y = y2_ref
+            x2 = eval(milestone_function)
+            plt.axline((x1, y1_ref), (x2, y2_ref), color="k", lw=2)
+        else:
+            x = x1_ref
+            y1 = eval(milestone_function)
+            x = x2_ref
+            y2 = eval(milestone_function)
+            plt.axline((x1_ref, y1), (x2_ref, y2), color="k", lw=2)
         
     return
     

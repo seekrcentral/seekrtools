@@ -13,3 +13,7 @@ milestone_cv_functions = ["value"]
 plotting.draw_linear_milestones(toy_plot, milestone_cv_functions)
 ani = toy_plot.animate_trajs(animating_anchor_indices=[0, 1, 2, 3, 4, 5, 6])
 plt.show()
+
+#movie_filename = "entropy_barrier_milestones.mp4" 
+#writervideo = animation.FFMpegWriter(fps=60) 
+#ani.save(movie_filename, writer=writervideo)
