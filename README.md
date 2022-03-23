@@ -41,6 +41,7 @@ Thanks also to everyone who has helped or will help improve this project by
 providing feedback, bug reports, or other comments.
 
 * Rommie Amaro (principal investigator)
+* Ilker Deveci (developer)
 * Anand Ojha (developer)
 * Andy Stokely (developer)
 * Lane Votapka (lead developer)

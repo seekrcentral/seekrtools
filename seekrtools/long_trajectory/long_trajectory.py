@@ -39,8 +39,13 @@ Note: Use shorter trajectories made from fragments to find the local states
 
 import os
 import glob
+import math
+import random
+from collections import defaultdict
 
+import mdtraj
 import seekr2.modules.common_base as base
+import seekr2.modules.mmvt_base as mmvt_base
 
 class Fragment():
     def __init__(self, anchor_index, source_milestone, dest_milestone, 
@@ -50,9 +55,19 @@ class Fragment():
         self.dest_milestone = dest_milestone
         self.start_time = start_time
         self.end_time = end_time
+        self.traj = None
         
-    def extract_frames_from_dcd(self, dcd_file):
-        pass
+        
+    def extract_frames_from_dcd(self, model, traj):
+        total_dcd_frames = model.calculation_settings.num_production_steps \
+            // model.calculation_settings.trajectory_reporter_interval
+        frames_per_picosecond = total_dcd_frames \
+            / (model.calculation_settings.num_production_steps \
+               * model.get_timestep())
+        first_frame = int(math.ceil(self.start_time * frames_per_picosecond))
+        last_frame = int(math.ceil(self.end_time * frames_per_picosecond))
+        self.traj = traj[first_frame:last_frame]
+        return
 
 def anchor_mmvt_output_slicer_dicer(model, anchor):
     output_file_glob = os.path.join(
@@ -61,7 +76,7 @@ def anchor_mmvt_output_slicer_dicer(model, anchor):
     output_file_list = glob.glob(output_file_glob)
     output_file_list = base.order_files_numerically(
         output_file_list)
-    fragment_list = []
+    fragment_dict = defaultdict(list)
     src_milestone_alias = None
     start_time = None
     for output_file_name in output_file_list:
@@ -81,26 +96,94 @@ def anchor_mmvt_output_slicer_dicer(model, anchor):
                     dest_milestone = anchor.id_from_alias(dest_milestone_alias)
                     fragment = Fragment(anchor.index, source_milestone, 
                                         dest_milestone, start_time, end_time)
-                    fragment_list.append(fragment)
+                    fragment_dict[source_milestone].append(fragment)
                     src_milestone_alias = dest_milestone_alias
                     start_time = end_time
                     
-    return fragment_list
-          
+    return fragment_dict
+
+def load_anchor_dcd_files(model, anchor):
+    building_directory = os.path.join(
+        model.anchor_rootdir, anchor.directory, anchor.building_directory)
+    prod_directory = os.path.join(
+        model.anchor_rootdir, anchor.directory, anchor.production_directory)
+    mmvt_traj_basename = mmvt_base.OPENMMVT_BASENAME+"*.dcd"
+    mmvt_traj_glob = os.path.join(prod_directory, mmvt_traj_basename)
+    mmvt_traj_filenames = glob.glob(mmvt_traj_glob)
+    assert len(mmvt_traj_filenames) > 0, "Anchor {} has no frames.".format(
+        anchor.index)
+    if model.using_toy():
+        pdb_filename = os.path.join(building_directory, "toy.pdb")
+        top_filename = pdb_filename
+    else:
+        if anchor.amber_params.prmtop_filename is not None:
+            prmtop_filename = os.path.join(
+                building_directory, anchor.amber_params.prmtop_filename)
+            top_filename = prmtop_filename
+    
+    traj = mdtraj.load(mmvt_traj_filenames, top=top_filename)
+    return traj
+
 def make_fragment_list(model):
     all_anchors_fragment_list = []
     for i, anchor in enumerate(model.anchors):
+        if anchor.bulkstate:
+            continue
         # Read the MMVT output files for this anchor
-        anchor_fragment_list = anchor_mmvt_output_slicer_dicer(model, anchor)
-        all_anchors_fragment_list.append(anchor_fragment_list)
+        anchor_fragment_dict = anchor_mmvt_output_slicer_dicer(model, anchor)
+        traj = load_anchor_dcd_files(model, anchor)
+        for key in anchor_fragment_dict:
+            fragment_list = anchor_fragment_dict[key]
+            for fragment in fragment_list:
+                fragment.extract_frames_from_dcd(model, traj)
+            
+        all_anchors_fragment_list.append(anchor_fragment_dict)
     
-    return
+    return all_anchors_fragment_list
+
+
+
+def make_long_trajectory(model, all_anchors_fragment_list, starting_anchor_index):
+    ITER = 1000
+    
+    current_anchor_index = starting_anchor_index
+    
+    anchor_frag_dict = all_anchors_fragment_list[starting_anchor_index]
+    first_key = list(anchor_frag_dict.keys())[0]
+    fragment_list = anchor_frag_dict[first_key]
+    current_fragment = random.choice(fragment_list)
+    
+    long_traj = current_fragment.traj[:]
+    
+    for i in range(ITER):
+        current_anchor = model.anchors[current_anchor_index]
+        dest_milestone_index = current_fragment.dest_milestone
+        for milestone in current_anchor.milestones:
+            if milestone.index == dest_milestone_index:
+                dest_milestone = milestone
+                break
+        
+        next_anchor_index = dest_milestone.neighbor_anchor_index
+        next_anchor_fragment_dict = all_anchors_fragment_list[next_anchor_index]
+        next_anchor_fragment_list = next_anchor_fragment_dict[dest_milestone.index]
+        print("dest_milestone.index:", dest_milestone.index)
+        print("next_anchor_index:", next_anchor_index)
+        next_fragment = random.choice(next_anchor_fragment_list)
+        long_traj += next_fragment.traj
+        current_anchor_index = next_anchor_index
+        current_fragment = next_fragment
+        
+    return long_traj
+    
 
 model_file = "/home/lvotapka/toy_seekr_systems/muller_potential/model.xml"
 
+bound_anchor = 0
+
 model = base.load_model(model_file)
         
-make_fragment_list(model)
+all_anchors_fragment_list = make_fragment_list(model)
 
-    
+long_traj = make_long_trajectory(model, all_anchors_fragment_list, bound_anchor)
 
+long_traj.save("muller_test.dcd")
