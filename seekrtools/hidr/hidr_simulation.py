@@ -438,12 +438,25 @@ def run_SMD_simulation(model, source_anchor_index, destination_anchor_index,
     cv_id_list = []
     windows_list_unzipped = []
     
+    # Get positions
+    dummy_sim_openmm = HIDR_sim_openmm()
+    system, dummy_topology, positions, dummy_box_vectors, \
+        dummy_num_frames = common_sim_openmm.create_openmm_system(
+            dummy_sim_openmm, model, source_anchor)
+    
     for variable_key in source_anchor.variables:
         var_name = variable_key.split("_")[0]
         var_cv = int(variable_key.split("_")[1])
+        cv = model.collective_variables[var_cv]
         # the two anchors must share a common variable
         if variable_key in destination_anchor.variables:
-            start_value = source_anchor.variables[variable_key]
+            #start_value = source_anchor.variables[variable_key]
+            # TODO: the start value should be the current state of the
+            #  system
+            if source_anchor.__class__.__name__ in ["MMVT_toy_anchor"]:
+                start_value = cv.get_cv_value(positions, {})
+            else:
+                start_value = cv.get_openmm_context_cv_value(None, positions, system)
             last_value = destination_anchor.variables[variable_key]
             increment = (last_value - start_value)/NUM_WINDOWS
             windows = np.arange(start_value, last_value+0.0001*increment, 
