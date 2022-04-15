@@ -57,7 +57,7 @@ def create_trp_cage_mmvt_rmsd_CV_model_input(
     
     pdb_filenames = ["", "", "", "", "", ""]
     for i, (value, pdb_filename) in enumerate(zip(values_list, pdb_filenames)):
-        input_anchor = common_cv.Tiwary_cv_anchor()
+        input_anchor = common_cv.RMSD_cv_anchor()
         input_anchor.value = value
         if ff == "amber":
             assign_amber_params(input_anchor, amber_prmtop_filename, 

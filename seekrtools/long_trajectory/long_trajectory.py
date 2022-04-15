@@ -166,8 +166,6 @@ def make_long_trajectory(model, all_anchors_fragment_list, starting_anchor_index
         next_anchor_index = dest_milestone.neighbor_anchor_index
         next_anchor_fragment_dict = all_anchors_fragment_list[next_anchor_index]
         next_anchor_fragment_list = next_anchor_fragment_dict[dest_milestone.index]
-        print("dest_milestone.index:", dest_milestone.index)
-        print("next_anchor_index:", next_anchor_index)
         next_fragment = random.choice(next_anchor_fragment_list)
         long_traj += next_fragment.traj
         current_anchor_index = next_anchor_index
