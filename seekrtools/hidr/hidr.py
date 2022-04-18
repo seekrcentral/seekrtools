@@ -34,7 +34,7 @@ def catch_erroneous_destination(destination):
         "is an integer."
     if destination not in ["any"]:
         try:
-            integer_destination = int(destination)
+            dummy_integer = int(destination)
         except ValueError:
             print(error_msg)
             return False

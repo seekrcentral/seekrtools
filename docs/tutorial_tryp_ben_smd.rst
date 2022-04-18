@@ -1,5 +1,7 @@
-Tutorial: Generating Trypsin/Benzamidine Starting Structures
-============================================================
+Tutorial: Generating Trypsin/Benzamidine Starting Structures with SMD Scripts
+=============================================================================
+
+WARNING: This tutorial is DEPRECATED and not recommended for use.
 
 In this tutorial, we will be performing steered molecular dynamics (SMD) on the
 equilibrated trypsin/benzamidine system to pull the ligand slowly out of the

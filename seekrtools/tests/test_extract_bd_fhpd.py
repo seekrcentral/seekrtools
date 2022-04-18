@@ -1,7 +1,7 @@
 import os
 import pytest
 
-import seekrtools.extract_bd_fhpd as extract_bd_fhpd
+import seekrtools.scripts.extract_bd_fhpd as extract_bd_fhpd
 
 TEST_DIRECTORY = os.path.dirname(__file__)
 

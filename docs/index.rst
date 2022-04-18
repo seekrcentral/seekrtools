@@ -15,17 +15,17 @@ users, including:
  1. Documentation, sample scripts, and tutorials to help users prepare systems
     for SEEKR2 calculations, including
 
-   * a. parametrization
-   * b. minimization/equilibration
-   * c. steered molecular dynamics (SMD) to generate starting structures
+  * a. parametrization
+  * b. minimization/equilibration
+  * c. steered molecular dynamics (SMD) and other methods to generate starting structures
    
  2. More tools for analysis of SEEKR2 results.
  3. Additional example systems and SEEKR2 inputs to explore and test SEEKR2 
     features
    
-   * New/experimental collective variables (CVs)
-   * Unusual systems with multiple sites/important motions
-   * New applications of milestoning theory
+  * New/experimental collective variables (CVs)
+  * Unusual systems with multiple sites/important motions
+  * New applications of milestoning theory
 
 .. toctree::
    :maxdepth: 1

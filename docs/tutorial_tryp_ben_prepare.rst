@@ -19,5 +19,4 @@ This tutorial requires OpenMM and AmberTools to be installed and ready to run.
    :caption: Contents:
 
    tutorial_tryp_ben_parametrize
-   tutorial_tryp_ben_equilibrate
-   tutorial_tryp_ben_smd
+   tutorial_tryp_ben_hidr
