@@ -82,7 +82,7 @@ def anchor_mmvt_output_slicer_dicer(model, anchor):
     for output_file_name in output_file_list:
         with open(output_file_name) as f:
             for line in f.readlines():
-                if line.startswith("#") or line.startwith("CHECKPOINT"):
+                if line.startswith("#") or line.startswith("CHECKPOINT"):
                     continue
                 line_split = line.strip().split(",")
                 dest_milestone_alias = int(line_split[0])
