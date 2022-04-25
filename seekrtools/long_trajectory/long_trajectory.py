@@ -143,8 +143,10 @@ def make_fragment_list(model):
 
 
 
-def make_long_trajectory(model, all_anchors_fragment_list, starting_anchor_index):
-    ITER = 1000
+def make_long_trajectory(model, all_anchors_fragment_list, starting_anchor_index, ITER = 200000):
+    
+
+    
     
     current_anchor_index = starting_anchor_index
     
@@ -155,6 +157,7 @@ def make_long_trajectory(model, all_anchors_fragment_list, starting_anchor_index
     
     long_traj = current_fragment.traj[:]
     
+    
     for i in range(ITER):
         current_anchor = model.anchors[current_anchor_index]
         dest_milestone_index = current_fragment.dest_milestone
@@ -164,13 +167,20 @@ def make_long_trajectory(model, all_anchors_fragment_list, starting_anchor_index
                 break
         
         next_anchor_index = dest_milestone.neighbor_anchor_index
-        next_anchor_fragment_dict = all_anchors_fragment_list[next_anchor_index]
+        try:
+            next_anchor_fragment_dict = all_anchors_fragment_list[next_anchor_index]
+        except IndexError:
+            print("Trajectory terminated before final iteration at : " + str(i))
+            break
         next_anchor_fragment_list = next_anchor_fragment_dict[dest_milestone.index]
+        if len(next_anchor_fragment_list) == 0:
+            print("Max Iteration number reached : " + str(i))
+            break
         next_fragment = random.choice(next_anchor_fragment_list)
         long_traj += next_fragment.traj
         current_anchor_index = next_anchor_index
         current_fragment = next_fragment
-        
+   
     return long_traj
     
 
