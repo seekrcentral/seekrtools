@@ -624,9 +624,13 @@ def run_RAMD_simulation(model, force_constant, source_anchor_index,
                 in_anchor = True
                 for milestone in anchor.milestones:
                     cv = model.collective_variables[milestone.cv_index]
+                    # TODO fix error: chdir to model rootdir
+                    curdir = os.getcwd()
+                    os.chdir(model.anchor_rootdir)
                     result = cv.check_openmm_context_within_boundary(
                         simulation.context, milestone.variables, positions, 
                         tolerance=-0.01)
+                    os.chdir(curdir)
                     if not result:
                         in_anchor = False
                 

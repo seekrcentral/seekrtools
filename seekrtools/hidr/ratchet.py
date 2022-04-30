@@ -40,30 +40,43 @@ def sort_anchors_by_number_of_states(states_dict, anchors_run):
             sorted_anchors.remove(anchor)
     return sorted_anchors
 
-def ratchet(model, pdb_files, toy_coordinates, force_overwrite):
+def ratchet(model, pdb_files, toy_coordinates=None, force_overwrite=False):
     """
     
     """
     MAX_ITER = 200
     anchors_run = []
+    first_anchors = []
+    states_dict = {}
     
     if model.using_toy():
         assert len(toy_coordinates) == 3
         first_anchor_index = hidr_base.assign_toy_coords_to_model(
             model, toy_coordinates)
-        print("first_anchor_index:", first_anchor_index)
+        first_anchors.append(first_anchor_index)
     else:
         for pdb_file in pdb_files:
-            hidr_base.assign_pdb_file_to_model(model, pdb_file)
-            
-    run.run(model, str(first_anchor_index), save_state_file=True, 
-            force_overwrite=force_overwrite)
-    anchors_run.append(first_anchor_index)
-    first_anchor = model.anchors[first_anchor_index]
-    states_dict = get_states_dict(model, first_anchor)
+            first_anchor_index = hidr_base.assign_pdb_file_to_model(model, pdb_file)
+            first_anchors.append(first_anchor_index)
     
+    anchors_to_run_sorted = []
+    for first_anchor_index in first_anchors:
+        print("first_anchor_index:", first_anchor_index)
+        run.run(model, str(first_anchor_index), save_state_file=True, 
+                force_overwrite=force_overwrite)
+        anchors_run.append(first_anchor_index)
+        first_anchor = model.anchors[first_anchor_index]
+        this_states_dict = get_states_dict(model, first_anchor)
+        for key, value in this_states_dict.items():
+            if key in states_dict:
+                states_dict[key].extend(value)
+            else:
+                states_dict[key] = value
+
     anchors_to_run_sorted = sort_anchors_by_number_of_states(
                 states_dict, anchors_run)
+        
+        
     counter = 0
     while len(anchors_to_run_sorted) > 0:
         print("anchors_to_run_sorted:", anchors_to_run_sorted)
