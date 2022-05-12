@@ -50,7 +50,7 @@ providing feedback, bug reports, or other comments.
 
 If you use Seekrtools, please cite one or more of the following SEEKR papers:
 
-* Votapka, L. W.; Stokely, A. M.; Ojha, A. A.; Amaro, R. E. SEEKR2: Versatile Multiscale Milestoning Utilizing the OpenMM 7.5 Molecular Dynamics Engine. J. Chem. Inf. Mod. In Review. https://doi.org/10.33774/chemrxiv-2021-pplfs
+* Votapka, L. W.; Stokely, A. M.; Ojha, A. A.; Amaro, R. E. SEEKR2: Versatile Multiscale Milestoning Utilizing the OpenMM Molecular Dynamics Engine. J. Chem. Inf. Mod. In Review. https://doi.org/10.33774/chemrxiv-2021-pplfs
 
 * Votapka, L. W.; Jagger, B. R.; Heyneman, A. L.; Amaro, R. E. SEEKR: Simulation Enabled Estimation of Kinetic Rates, A Computational Tool to Estimate Molecular Kinetics and Its Application to Trypsin–Benzamidine Binding. J. Phys. Chem. B 2017, 121 (15), 3597–3606. https://doi.org/10.1021/acs.jpcb.6b09388. 
 
