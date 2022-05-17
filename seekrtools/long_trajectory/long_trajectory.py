@@ -117,7 +117,7 @@ def load_anchor_dcd_files(model, anchor):
     mmvt_traj_basename = mmvt_base.OPENMMVT_BASENAME+"*.dcd"
     mmvt_traj_glob = os.path.join(prod_directory, mmvt_traj_basename)
     mmvt_traj_filenames = glob.glob(mmvt_traj_glob)
-    assert len(mmvt_traj_filenames) > 0, "Anchor {} has no frames.".format(
+    assert len(mmvt_traj_filenames) > 0, "Anchor {} has no dcd files.".format(
         anchor.index)
     if model.using_toy():
         pdb_filename = os.path.join(building_directory, "toy.pdb")
@@ -311,8 +311,11 @@ if __name__ == "__main__":
     max_total_frames = args["max_total_frames"]
     minimum_visits_per_site = args["minimum_visits_per_anchor"]
     bound_anchor = args["starting_anchor_index"]
+    
     model = base.load_model(model_file)
+    starttime = time.time()
     all_anchors_fragment_list = make_fragment_list(model)
+    print("Time to make fragment list (s):", time.time() - starttime)
     long_sequence = long_sequence_from_fragments(
         model, all_anchors_fragment_list, bound_anchor, total_timespan_in_ps, 
         minimum_visits_per_site, max_total_frames)
