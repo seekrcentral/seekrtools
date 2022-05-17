@@ -13,10 +13,13 @@ import random
 import seekr2.modules.common_base as base
 import seekr2.modules.mmvt_sim_openmm as mmvt_sim_openmm
 import seekr2.run as run
+import seekr2.modules.runner_openmm as runner_openmm
 
 import seekrtools.hidr.hidr_base as hidr_base
 
 RUN_STATES_PER_ANCHOR = 1
+STEPS_PER_ITER = 1000 # TODO: add to arguments
+MAX_ITER = 1000
 
 def get_states_dict(model, anchor):
     states_dict = {}
@@ -62,9 +65,32 @@ def ratchet(model, pdb_files, toy_coordinates=None, force_overwrite=False):
     anchors_to_run_sorted = []
     for first_anchor_index in first_anchors:
         print("first_anchor_index:", first_anchor_index)
-        run.run(model, str(first_anchor_index), save_state_file=True, 
-                force_overwrite=force_overwrite)
+        min_state_count = 0
+        counter = 0
+        anchor = model.anchors[first_anchor_index]
+        state_glob = os.path.join(
+            model.anchor_rootdir, anchor.directory, 
+            anchor.production_directory, 
+            runner_openmm.SAVE_STATE_DIRECTORY, 
+            runner_openmm.SAVE_STATE_PREFIX)
+        
+        while min_state_count < RUN_STATES_PER_ANCHOR:
+            
+            run.run(model, str(first_anchor_index), save_state_file=True, 
+                    force_overwrite=force_overwrite, 
+                    min_total_simulation_length=STEPS_PER_ITER*(counter+1))
+            min_state_count = runner_openmm.min_number_of_states_per_boundary(
+                state_glob, anchor)
+            print("min_state_count:", min_state_count, "counter:", counter)
+            counter += 1
+            if counter > MAX_ITER:
+                print("Maximum iterations exceeded - not all states generated.")
+                break
+                
         anchors_run.append(first_anchor_index)
+        
+        
+        
         first_anchor = model.anchors[first_anchor_index]
         this_states_dict = get_states_dict(model, first_anchor)
         for key, value in this_states_dict.items():
@@ -94,8 +120,30 @@ def ratchet(model, pdb_files, toy_coordinates=None, force_overwrite=False):
                 exit()
             
             print("loading state file:", state_file)
-            run.run(model, str(anchor_index), save_state_file=True, 
-                    load_state_file=state_file, force_overwrite=force_overwrite)
+            min_state_count = 0
+            counter = 0
+            state_glob = os.path.join(
+                model.anchor_rootdir, anchor.directory, 
+                anchor.production_directory, 
+                runner_openmm.SAVE_STATE_DIRECTORY, 
+                runner_openmm.SAVE_STATE_PREFIX)
+            while min_state_count < RUN_STATES_PER_ANCHOR:
+            
+                run.run(model, str(anchor_index), save_state_file=True, 
+                        load_state_file=state_file, 
+                        force_overwrite=force_overwrite,
+                        min_total_simulation_length=STEPS_PER_ITER*(counter+1))
+                # Here we need to check how many states exist per boundary, and if
+                # it's enough, then stop running.
+            
+                min_state_count = runner_openmm\
+                    .min_number_of_states_per_boundary(state_glob, anchor)
+                print("min_state_count:", min_state_count, "counter:", counter)
+                counter += 1
+                if counter > MAX_ITER:
+                    print("Maximum iterations exceeded - not all states generated.")
+                    break
+            
             anchors_run.append(anchor_index)
             states_dict_this = get_states_dict(model, anchor)
             
