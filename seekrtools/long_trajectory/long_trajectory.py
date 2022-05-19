@@ -66,11 +66,13 @@ class Fragment():
         
         
     def extract_frames_from_dcd(self, model, traj):
-        total_dcd_frames = model.calculation_settings.num_production_steps \
-            // model.calculation_settings.trajectory_reporter_interval
-        frames_per_picosecond = total_dcd_frames \
-            / (model.calculation_settings.num_production_steps \
-               * model.get_timestep())
+        #total_dcd_frames = model.calculation_settings.num_production_steps \
+        #    // model.calculation_settings.trajectory_reporter_interval
+        total_dcd_frames = traj.n_frames
+        total_simulation_time = \
+            model.calculation_settings.num_production_steps \
+            * model.get_timestep()
+        frames_per_picosecond = total_dcd_frames / total_simulation_time
         first_frame = int(math.ceil(self.start_time * frames_per_picosecond))
         last_frame = int(math.ceil(self.end_time * frames_per_picosecond))
         if first_frame == last_frame:
@@ -111,10 +113,9 @@ def anchor_mmvt_output_slicer_dicer(model, anchor):
                     src_milestone_alias = dest_milestone_alias
                     start_time = end_time
                     
-                
     return fragment_dict
 
-def load_anchor_dcd_files(model, anchor):
+def load_anchor_dcd_files(model, anchor, stride=None):
     building_directory = os.path.join(
         model.anchor_rootdir, anchor.directory, anchor.building_directory)
     prod_directory = os.path.join(
@@ -133,17 +134,28 @@ def load_anchor_dcd_files(model, anchor):
                 building_directory, anchor.amber_params.prmtop_filename)
             top_filename = prmtop_filename
     
-    traj = mdtraj.load(mmvt_traj_filenames, top=top_filename)
+    indices_to_pop = []
+    for i, traj_filename in enumerate(mmvt_traj_filenames):
+        if os.path.getsize(traj_filename) == 0:
+            indices_to_pop.append(i)
+    
+    for i in indices_to_pop[::-1]:
+        mmvt_traj_filenames.pop(i)
+    
+    assert len(mmvt_traj_filenames) > 0, \
+        "Only empty DCD files found in anchor {}.".format(anchor.index)
+    
+    traj = mdtraj.load(mmvt_traj_filenames, top=top_filename, stride=stride)
     return traj
 
-def make_fragment_list(model):
+def make_fragment_list(model, stride=None):
     all_anchors_fragment_list = []
     for i, anchor in enumerate(model.anchors):
         if anchor.bulkstate:
             continue
         # Read the MMVT output files for this anchor
         anchor_fragment_dict = anchor_mmvt_output_slicer_dicer(model, anchor)
-        traj = load_anchor_dcd_files(model, anchor)
+        traj = load_anchor_dcd_files(model, anchor, stride)
         for key in anchor_fragment_dict:
             fragment_list = anchor_fragment_dict[key]
             for fragment in fragment_list:
@@ -294,20 +306,26 @@ if __name__ == "__main__":
         "-t", "--total_timespan", dest="total_timespan", 
         default=1000000.0, type=float,
         help="The amount of time that should the trajectory should span in "\
-        "in units of picoseconds.")
+        "in units of picoseconds. Default: 1000000.0.")
     argparser.add_argument(
         "-f", "--max_total_frames", dest="max_total_frames", 
         default=1000, type=int,
-        help="The maximum number of frames in the final DCD file.")
+        help="The maximum number of frames in the final DCD file. "\
+        "Default: 1000.")
     argparser.add_argument(
         "-m", "--minimum_visits_per_anchor", dest="minimum_visits_per_anchor", 
         default=0, type=int,
         help="The minimum number of times every anchor should be visited "\
-        "(that is, from another anchor).")
+        "(that is, from another anchor). Default: 0.")
     argparser.add_argument(
         "-a", "--starting_anchor_index", dest="starting_anchor_index", 
         default=0, type=int,
-        help="The index of the anchor to start the trajectory at.")
+        help="The index of the anchor to start the trajectory at. Default: 0.")
+    argparser.add_argument(
+        "-s", "--stride", dest="stride", 
+        default=1, type=int,
+        help="The stride to use to load each anchor DCD. Use a larger "\
+        "number to save memory. Default: 1.")
     
     args = argparser.parse_args() # parse the args into a dictionary
     args = vars(args)
@@ -317,10 +335,11 @@ if __name__ == "__main__":
     max_total_frames = args["max_total_frames"]
     minimum_visits_per_site = args["minimum_visits_per_anchor"]
     bound_anchor = args["starting_anchor_index"]
+    stride = args["stride"]
     
     model = base.load_model(model_file)
     starttime = time.time()
-    all_anchors_fragment_list = make_fragment_list(model)
+    all_anchors_fragment_list = make_fragment_list(model, stride)
     print("Time to make fragment list (s):", time.time() - starttime)
     long_sequence = long_sequence_from_fragments(
         model, all_anchors_fragment_list, bound_anchor, total_timespan_in_ps, 
