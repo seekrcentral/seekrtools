@@ -73,7 +73,11 @@ class Fragment():
                * model.get_timestep())
         first_frame = int(math.ceil(self.start_time * frames_per_picosecond))
         last_frame = int(math.ceil(self.end_time * frames_per_picosecond))
-        self.traj = traj[first_frame:last_frame]
+        if first_frame == last_frame:
+            self.traj = None
+        else:
+            self.traj = traj[first_frame:last_frame]
+            
         return
 
 def anchor_mmvt_output_slicer_dicer(model, anchor):
@@ -107,6 +111,7 @@ def anchor_mmvt_output_slicer_dicer(model, anchor):
                     src_milestone_alias = dest_milestone_alias
                     start_time = end_time
                     
+                
     return fragment_dict
 
 def load_anchor_dcd_files(model, anchor):
@@ -143,7 +148,7 @@ def make_fragment_list(model):
             fragment_list = anchor_fragment_dict[key]
             for fragment in fragment_list:
                 fragment.extract_frames_from_dcd(model, traj)
-            
+                
         all_anchors_fragment_list.append(anchor_fragment_dict)
     
     return all_anchors_fragment_list
@@ -193,12 +198,13 @@ def long_sequence_from_fragments(model, all_anchors_fragment_list,
     
     start_time = time.time()
     while True:
-        for traj_frame in range(current_fragment.traj.n_frames):
-            total_frame_counter += 1
-            if total_frame_counter % frame_stride == 0:
-                sequence_entry = [current_anchor_index, src_milestone, 
-                                  current_fragment_index, traj_frame]
-                long_sequence.append(sequence_entry)
+        if current_fragment.traj is not None:
+            for traj_frame in range(current_fragment.traj.n_frames):
+                total_frame_counter += 1
+                if total_frame_counter % frame_stride == 0:
+                    sequence_entry = [current_anchor_index, src_milestone, 
+                                      current_fragment_index, traj_frame]
+                    long_sequence.append(sequence_entry)
 
         current_anchor = model.anchors[current_anchor_index]
         dest_milestone_index = current_fragment.dest_milestone
