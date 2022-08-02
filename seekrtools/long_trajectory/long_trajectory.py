@@ -145,17 +145,20 @@ def load_anchor_dcd_files(model, anchor, stride=None):
     assert len(mmvt_traj_filenames) > 0, \
         "Only empty DCD files found in anchor {}.".format(anchor.index)
     
+    print("len(mmvt_traj_filenames):", len(mmvt_traj_filenames), "stride:", stride)
     traj = mdtraj.load(mmvt_traj_filenames, top=top_filename, stride=stride)
     return traj
 
 def make_fragment_list(model, stride=None):
     all_anchors_fragment_list = []
     for i, anchor in enumerate(model.anchors):
+        print("loading dcds for anchor:", i)
         if anchor.bulkstate:
             continue
         # Read the MMVT output files for this anchor
         anchor_fragment_dict = anchor_mmvt_output_slicer_dicer(model, anchor)
         traj = load_anchor_dcd_files(model, anchor, stride)
+        print("traj.n_frames:", traj.n_frames)
         for key in anchor_fragment_dict:
             fragment_list = anchor_fragment_dict[key]
             for fragment in fragment_list:
@@ -267,6 +270,9 @@ def long_sequence_from_fragments(model, all_anchors_fragment_list,
         counter += 1
         if counter > MAX_ITER:
             raise Exception("Maximum iterations exceeded.")
+    
+    print("Times visited anchors:")
+    print(times_visited_states)
     
     print("Time spent making sequence (s):", time.time() - start_time)
     
