@@ -106,6 +106,7 @@ def make_states_dict_one_anchor(model, anchor):
         state_files_for_adj_anchor = extract_states_not_in_anchor(
             model, milestone.neighbor_anchor_index, state_files_for_adj_anchor)
         states_dict[milestone.neighbor_anchor_index] = state_files_for_adj_anchor
+    
     return states_dict
 
 def make_states_dict_all_anchors(model):
@@ -113,7 +114,7 @@ def make_states_dict_all_anchors(model):
     for alpha, anchor in enumerate(model.anchors):
         this_anchor_states_dict = make_states_dict_one_anchor(model, anchor)
         for anchor2 in this_anchor_states_dict:
-            states_dict[anchor2] += this_anchor_states_dict
+            states_dict[anchor2] += this_anchor_states_dict[anchor2]
     
     return states_dict
 
@@ -182,11 +183,11 @@ def ratchet(model, pdb_files, states_per_anchor, max_states_per_boundary,
         else:
             anchor_counter[alpha] = 0
             continue
-        
+                
         if len(starting_states_list) == 0:
             swarm_frame = None
             load_state_file = None
-        elif len(starting_states_list) == 1:
+        elif states_per_anchor == 1:
             swarm_frame = None
             load_state_file = starting_states_list[0]
         else:
@@ -318,7 +319,8 @@ if __name__ == "__main__":
         "assumed completed if all the boundaries have been hit.")
     argparser.add_argument(
         "-S", "--steps_per_iter", dest="steps_per_iter", default=1000,
-        type=int, help="The number of steps to take per iteration.")
+        type=int, help="The number of steps to take per iteration. Default: "\
+        "1000")
     argparser.add_argument(
         "-e", "--finish_on_endstates", dest="finish_on_endstates", 
         default=False, help="Toggle whether to end the ratchet simulation "\
