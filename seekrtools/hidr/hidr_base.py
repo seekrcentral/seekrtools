@@ -380,7 +380,7 @@ def assign_toy_coords_to_model(model, toy_coordinates):
     """
     for anchor in model.anchors:
         between_milestones = True
-        positions = unit.Quantity([toy_coordinates], unit=unit.nanometers)
+        positions = unit.Quantity(toy_coordinates, unit=unit.nanometers)
         for milestone in anchor.milestones:
             cv = model.collective_variables[milestone.cv_index]
             result = cv.check_positions_within_boundary(

@@ -155,7 +155,8 @@ def ratchet(model, pdb_files, states_per_anchor, max_states_per_boundary,
     
     first_anchors = []
     if model.using_toy():
-        assert len(toy_coordinates) == 3
+        for toy_coordinate in toy_coordinates:
+            assert len(toy_coordinates) == 3
         first_anchor_index = hidr_base.assign_toy_coords_to_model(
             model, toy_coordinates)
         incomplete_anchors.append(first_anchor_index)
@@ -290,7 +291,7 @@ if __name__ == "__main__":
         "must already be assigned into an anchor for this to work.")
     argparser.add_argument(
         "-t", "--toy_coordinates", dest="toy_coordinates", default=[], 
-        nargs=3, type=float, metavar="x y z", help="Enter the X, Y, Z "\
+        metavar="[[x1 y1 z1], [x2 y2 z2], ...]", help="Enter the X, Y, Z "\
         "coordinates for toy system's starting position. It will be "\
         "automatically assigned to the correct anchor.")
     argparser.add_argument(
