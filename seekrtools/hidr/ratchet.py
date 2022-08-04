@@ -156,7 +156,7 @@ def ratchet(model, pdb_files, states_per_anchor, max_states_per_boundary,
     first_anchors = []
     if model.using_toy():
         for toy_coordinate in toy_coordinates:
-            assert len(toy_coordinates) == 3
+            assert len(toy_coordinate) == 3
         first_anchor_index = hidr_base.assign_toy_coords_to_model(
             model, toy_coordinates)
         incomplete_anchors.append(first_anchor_index)
