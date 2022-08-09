@@ -11,6 +11,7 @@ import glob
 import math
 from collections import defaultdict
 import tempfile
+import ast
 
 import seekr2.modules.common_base as base
 import seekr2.modules.mmvt_sim_openmm as mmvt_sim_openmm
@@ -155,6 +156,7 @@ def ratchet(model, pdb_files, states_per_anchor, max_states_per_boundary,
     
     first_anchors = []
     if model.using_toy():
+        print("toy_coordinates:", toy_coordinates)
         for toy_coordinate in toy_coordinates:
             assert len(toy_coordinate) == 3
         first_anchor_index = hidr_base.assign_toy_coords_to_model(
@@ -251,7 +253,8 @@ def ratchet(model, pdb_files, states_per_anchor, max_states_per_boundary,
         for anchor2_index in states_dict:
             if len(states_dict[anchor2_index]) >= states_per_anchor \
                     and (anchor2_index not in complete_anchors) \
-                    and (anchor2_index not in incomplete_anchors):
+                    and (anchor2_index not in incomplete_anchors) \
+                    and not model.anchors[anchor2_index].bulkstate:
                 next_incomplete_anchors.add(anchor2_index)
             if model.anchors[anchor2_index].bulkstate:
                 reached_bulk_state = True
@@ -331,7 +334,7 @@ if __name__ == "__main__":
     args = vars(args)
     model_file = args["model_file"]
     pdb_files = args["pdb_files"]
-    toy_coordinates = args["toy_coordinates"]
+    toy_coordinates = ast.literal_eval(args["toy_coordinates"])
     force_overwrite = args["force_overwrite"]
     states_per_anchor = args["states_per_anchor"]
     max_states_per_boundary = args["max_states_per_boundary"]
