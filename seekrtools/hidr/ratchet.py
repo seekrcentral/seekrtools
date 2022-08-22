@@ -357,7 +357,7 @@ if __name__ == "__main__":
         max_states_per_boundary = states_per_anchor
     
     model = base.load_model(model_file)
-    ratchet(model, pdb_files, cuda_device_index, states_per_anchor, 
+    ratchet(model, cuda_device_index, pdb_files, states_per_anchor, 
             max_states_per_boundary, steps_per_iter, 
             minimum_timesteps_per_anchor, toy_coordinates, force_overwrite, 
             finish_on_endstates)
