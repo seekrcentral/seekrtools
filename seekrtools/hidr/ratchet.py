@@ -25,13 +25,15 @@ MAX_COUNTER = 1000
 def uniform_select_from_list(mylist, count):
     if len(mylist) < count:
         return mylist
-    interval = int(math.ceil(len(mylist) / count))
-    saving_indices = range(0, len(mylist), interval)
+    interval = int(math.floor(len(mylist) / count))
+    saving_indices = range(0, len(mylist), interval)[:count]
     saving_state_files = []
     for saving_index in saving_indices:
         saving_filename = mylist[saving_index]
         saving_state_files.append(saving_filename)
-    assert len(saving_state_files) == count
+    assert len(saving_state_files) == count, \
+        "len(saving_state_files): {}, count: {}".format(
+            len(saving_state_files), count)
     return saving_state_files
 
 def get_state_glob_all_boundaries(model, anchor):
@@ -92,7 +94,7 @@ def extract_states_not_in_anchor(model, anchor_index, state_files):
             for milestone in anchor.milestones:
                 if milestone.cv_index == cv.index:
                     in_boundary = cv.check_openmm_context_within_boundary(
-                        context, milestone.variables)
+                        context, milestone.variables, tolerance=0.000001)
                     if not in_boundary:
                         error_msg = "State file {} not in boundary of anchor {}".format(state_file, anchor_index)
                         raise Exception(error_msg)
@@ -210,7 +212,8 @@ def ratchet(model, pdb_files, states_per_anchor, max_states_per_boundary,
             # TODO: find a way to enable some of the first_anchor states to run
             anchor = model.anchors[incomplete_anchor]
             if (incomplete_anchor in states_dict) and \
-                    (not incomplete_anchor in first_anchors):
+                    (not incomplete_anchor in first_anchors) and \
+                    not not local_force_overwrite[incomplete_anchor]:
                 all_state_for_anchor = states_dict[incomplete_anchor]
                 states_to_run = uniform_select_from_list(all_state_for_anchor, 
                                                          states_per_anchor)
@@ -293,7 +296,7 @@ if __name__ == "__main__":
         "placed into the correct anchors. NOTE: the parameter/topology files "\
         "must already be assigned into an anchor for this to work.")
     argparser.add_argument(
-        "-t", "--toy_coordinates", dest="toy_coordinates", default=[], 
+        "-t", "--toy_coordinates", dest="toy_coordinates", default="[]", 
         metavar="[[x1 y1 z1], [x2 y2 z2], ...]", help="Enter the X, Y, Z "\
         "coordinates for toy system's starting position. It will be "\
         "automatically assigned to the correct anchor.")
