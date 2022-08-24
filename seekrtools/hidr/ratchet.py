@@ -20,7 +20,7 @@ import seekr2.modules.runner_openmm as runner_openmm
 
 import seekrtools.hidr.hidr_base as hidr_base
 
-MAX_COUNTER = 1000
+MAX_COUNTER = 10000000
 
 def uniform_select_from_list(mylist, count):
     if len(mylist) < count:
@@ -212,8 +212,7 @@ def ratchet(model, cuda_device_index, pdb_files, states_per_anchor,
             # TODO: find a way to enable some of the first_anchor states to run
             anchor = model.anchors[incomplete_anchor]
             if (incomplete_anchor in states_dict) and \
-                    (not incomplete_anchor in first_anchors) and \
-                    not not local_force_overwrite[incomplete_anchor]:
+                    (not incomplete_anchor in first_anchors):
                 all_state_for_anchor = states_dict[incomplete_anchor]
                 states_to_run = uniform_select_from_list(all_state_for_anchor, 
                                                          states_per_anchor)
@@ -223,6 +222,9 @@ def ratchet(model, cuda_device_index, pdb_files, states_per_anchor,
             print("running anchor:", incomplete_anchor)
             total_simulation_length = steps_per_iter\
                 *(anchor_counter[incomplete_anchor]+1)
+            print("total_simulation_length:", total_simulation_length)
+            print("steps_per_iter:", steps_per_iter)
+            print("anchor_counter[incomplete_anchor]:", anchor_counter[incomplete_anchor])
             run.run(model, str(incomplete_anchor), save_state_file=True,
                     load_state_file=states_to_run,
                     force_overwrite=local_force_overwrite[incomplete_anchor], 
@@ -274,6 +276,7 @@ def ratchet(model, cuda_device_index, pdb_files, states_per_anchor,
         
         counter += 1
         if counter == MAX_COUNTER:
+            print("Max counter exceeded!")
             break
     
     print("next_incomplete_anchors:", next_incomplete_anchors)
@@ -305,7 +308,7 @@ if __name__ == "__main__":
         "must already be assigned into an anchor for this to work.")
     argparser.add_argument(
         "-t", "--toy_coordinates", dest="toy_coordinates", default="[]", 
-        metavar="[[x1 y1 z1], [x2 y2 z2], ...]", help="Enter the X, Y, Z "\
+        metavar="[[x1, y1, z1], [x2, y2, z2], ...]", help="Enter the X, Y, Z "\
         "coordinates for toy system's starting position. It will be "\
         "automatically assigned to the correct anchor.")
     argparser.add_argument(
