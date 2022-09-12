@@ -216,10 +216,11 @@ def make_restraining_force(cv, variables_values_list):
         allows us to conveniently monitor a function of atomic 
         position.
     """
+    alias_index = 1 # TODO: wrong??
     myforce = cv.make_restraining_force()
     myforce.setForceGroup(1)
     variables_names_list = cv.add_parameters(myforce)
-    cv.add_groups_and_variables(myforce, variables_values_list)
+    cv.add_groups_and_variables(myforce, variables_values_list, alias_index)
     return myforce
 
 def add_forces(sim_openmm, model, anchor, restraint_force_constant, 
