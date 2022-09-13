@@ -80,6 +80,7 @@ def delete_extra_state_files(model, anchor, max_states_per_boundary,
     return
 
 def extract_states_not_in_anchor(model, anchor_index, state_files):
+    TOL = 1e-4
     anchor = model.anchors[anchor_index]
     for state_file in state_files:
         dummy_file = tempfile.NamedTemporaryFile()
@@ -91,7 +92,7 @@ def extract_states_not_in_anchor(model, anchor_index, state_files):
             for milestone in anchor.milestones:
                 if milestone.cv_index == cv.index:
                     in_boundary = cv.check_openmm_context_within_boundary(
-                        context, milestone.variables)
+                        context, milestone.variables, tolerance=TOL)
                     if not in_boundary:
                         error_msg = "State file {} not in boundary of anchor {}".format(state_file, anchor_index)
                         raise Exception(error_msg)
