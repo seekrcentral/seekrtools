@@ -11,6 +11,7 @@ import glob
 import math
 from collections import defaultdict
 import tempfile
+import ast
 
 import seekr2.modules.common_base as base
 import seekr2.modules.mmvt_sim_openmm as mmvt_sim_openmm
@@ -19,18 +20,20 @@ import seekr2.modules.runner_openmm as runner_openmm
 
 import seekrtools.hidr.hidr_base as hidr_base
 
-MAX_COUNTER = 1000
+MAX_COUNTER = 10000000
 
 def uniform_select_from_list(mylist, count):
     if len(mylist) < count:
         return mylist
-    interval = int(math.ceil(len(mylist) / count))
-    saving_indices = range(0, len(mylist), interval)
+    interval = int(math.floor(len(mylist) / count))
+    saving_indices = range(0, len(mylist), interval)[:count]
     saving_state_files = []
     for saving_index in saving_indices:
         saving_filename = mylist[saving_index]
         saving_state_files.append(saving_filename)
-    assert len(saving_state_files) == count
+    assert len(saving_state_files) == count, \
+        "len(saving_state_files): {}, count: {}".format(
+            len(saving_state_files), count)
     return saving_state_files
 
 def get_state_glob_all_boundaries(model, anchor):
@@ -80,7 +83,7 @@ def delete_extra_state_files(model, anchor, max_states_per_boundary,
     return
 
 def extract_states_not_in_anchor(model, anchor_index, state_files):
-    TOL = 1e-4
+    TOL = 1e-6
     anchor = model.anchors[anchor_index]
     for state_file in state_files:
         dummy_file = tempfile.NamedTemporaryFile()
@@ -131,10 +134,10 @@ def obtain_required_states(model):
         
     return list(required_states)
 
-def ratchet(model, pdb_files, states_per_anchor, max_states_per_boundary, 
-            steps_per_iter, minimum_timesteps_per_anchor=0, 
-            toy_coordinates=None, force_overwrite=False, 
-            finish_on_endstates=False):
+def ratchet(model, cuda_device_index, pdb_files, states_per_anchor, 
+            max_states_per_boundary, steps_per_iter, 
+            minimum_timesteps_per_anchor=0, toy_coordinates=None, 
+            force_overwrite=False, finish_on_endstates=False):
     """
     Use the ratchet method to move the system across the CV space.
     """
@@ -156,6 +159,7 @@ def ratchet(model, pdb_files, states_per_anchor, max_states_per_boundary,
     
     first_anchors = []
     if model.using_toy():
+        print("toy_coordinates:", toy_coordinates)
         for toy_coordinate in toy_coordinates:
             assert len(toy_coordinate) == 3
         first_anchor_index = hidr_base.assign_toy_coords_to_model(
@@ -219,10 +223,14 @@ def ratchet(model, pdb_files, states_per_anchor, max_states_per_boundary,
             print("running anchor:", incomplete_anchor)
             total_simulation_length = steps_per_iter\
                 *(anchor_counter[incomplete_anchor]+1)
+            print("total_simulation_length:", total_simulation_length)
+            print("steps_per_iter:", steps_per_iter)
+            print("anchor_counter[incomplete_anchor]:", anchor_counter[incomplete_anchor])
             run.run(model, str(incomplete_anchor), save_state_file=True,
                     load_state_file=states_to_run,
                     force_overwrite=local_force_overwrite[incomplete_anchor], 
-                    min_total_simulation_length=total_simulation_length)
+                    min_total_simulation_length=total_simulation_length, 
+                    cuda_device_index=cuda_device_index)
             
             anchor_counter[incomplete_anchor] += 1
             if incomplete_anchor in anchors_to_run_sorted:
@@ -252,7 +260,8 @@ def ratchet(model, pdb_files, states_per_anchor, max_states_per_boundary,
         for anchor2_index in states_dict:
             if len(states_dict[anchor2_index]) >= states_per_anchor \
                     and (anchor2_index not in complete_anchors) \
-                    and (anchor2_index not in incomplete_anchors):
+                    and (anchor2_index not in incomplete_anchors) \
+                    and not model.anchors[anchor2_index].bulkstate:
                 next_incomplete_anchors.add(anchor2_index)
             if model.anchors[anchor2_index].bulkstate:
                 reached_bulk_state = True
@@ -268,6 +277,7 @@ def ratchet(model, pdb_files, states_per_anchor, max_states_per_boundary,
         
         counter += 1
         if counter == MAX_COUNTER:
+            print("Max counter exceeded!")
             break
     
     print("next_incomplete_anchors:", next_incomplete_anchors)
@@ -286,13 +296,20 @@ if __name__ == "__main__":
         "One or more starting structures must be present in one or more of "\
         "the anchors.")
     argparser.add_argument(
+        "-c", "--cuda_device_index", dest="cuda_device_index", default=None,
+        help="modify which cuda_device_index to run the simulation on. For "\
+        "example, the number 0 or 1 would suffice. To run on multiple GPU "\
+        "indices, simply enter comma separated indices. Example: '0,1'. If a "\
+        "value is not supplied, the value in the MODEL_FILE will be used by "\
+        "default.", type=str)
+    argparser.add_argument(
         "-p", "--pdb_files", dest="pdb_files", default=[], nargs="*", type=str,
         metavar="FILE1 FILE2 ...", help="One or more PDB files which will be "\
         "placed into the correct anchors. NOTE: the parameter/topology files "\
         "must already be assigned into an anchor for this to work.")
     argparser.add_argument(
-        "-t", "--toy_coordinates", dest="toy_coordinates", default=[], 
-        metavar="[[x1 y1 z1], [x2 y2 z2], ...]", help="Enter the X, Y, Z "\
+        "-t", "--toy_coordinates", dest="toy_coordinates", default="[]", 
+        metavar="[[x1, y1, z1], [x2, y2, z2], ...]", help="Enter the X, Y, Z "\
         "coordinates for toy system's starting position. It will be "\
         "automatically assigned to the correct anchor.")
     argparser.add_argument(
@@ -331,8 +348,9 @@ if __name__ == "__main__":
     args = argparser.parse_args()
     args = vars(args)
     model_file = args["model_file"]
+    cuda_device_index = args["cuda_device_index"]
     pdb_files = args["pdb_files"]
-    toy_coordinates = args["toy_coordinates"]
+    toy_coordinates = ast.literal_eval(args["toy_coordinates"])
     force_overwrite = args["force_overwrite"]
     states_per_anchor = args["states_per_anchor"]
     max_states_per_boundary = args["max_states_per_boundary"]
@@ -343,6 +361,7 @@ if __name__ == "__main__":
         max_states_per_boundary = states_per_anchor
     
     model = base.load_model(model_file)
-    ratchet(model, pdb_files, states_per_anchor, max_states_per_boundary, 
-            steps_per_iter, minimum_timesteps_per_anchor, toy_coordinates, 
-            force_overwrite, finish_on_endstates)
+    ratchet(model, cuda_device_index, pdb_files, states_per_anchor, 
+            max_states_per_boundary, steps_per_iter, 
+            minimum_timesteps_per_anchor, toy_coordinates, force_overwrite, 
+            finish_on_endstates)
