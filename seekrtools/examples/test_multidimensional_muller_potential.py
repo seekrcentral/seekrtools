@@ -69,10 +69,10 @@ def create_multidimensional_muller_potential_model_input(root_dir):
     
     state_point1 = common_cv.State_point()
     state_point1.name = "stateA"
-    state_point1.location = [0.5, 0.0, 0.0]
+    state_point1.location = [[0.5, 0.0, 0.0]]
     state_point2 = common_cv.State_point()
     state_point2.name = "stateB"
-    state_point2.location = [-0.5, 1.5, 0.0]
+    state_point2.location = [[-0.5, 1.5, 0.0]]
     combo.state_points = [state_point1, state_point2]
     
     model_input.cv_inputs = [combo]
@@ -94,5 +94,5 @@ if __name__ == "__main__":
     model_dir = os.path.dirname(xml_path)
     model.anchor_rootdir = os.path.abspath(model_dir)
     
-    ratchet.ratchet(model, None, toy_coordinates=[0.5, 0.0, 0.0], force_overwrite = True)
+    #ratchet.ratchet(model, None, toy_coordinates=[0.5, 0.0, 0.0], force_overwrite = True)
     #run.run(model, "0")

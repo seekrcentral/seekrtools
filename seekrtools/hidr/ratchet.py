@@ -83,24 +83,32 @@ def delete_extra_state_files(model, anchor, max_states_per_boundary,
     return
 
 def extract_states_not_in_anchor(model, anchor_index, state_files):
-    TOL = 1e-6
+    TOL = 0.0
     anchor = model.anchors[anchor_index]
+    new_state_files_list = []
     for state_file in state_files:
         dummy_file = tempfile.NamedTemporaryFile()
         sim_openmm_obj = mmvt_sim_openmm.create_sim_openmm(
             model, anchor, dummy_file.name,
             load_state_file=state_file)
         context = sim_openmm_obj.simulation.context
+        in_boundary = True
         for cv in model.collective_variables:
             for milestone in anchor.milestones:
                 if milestone.cv_index == cv.index:
                     in_boundary = cv.check_openmm_context_within_boundary(
                         context, milestone.variables, tolerance=TOL)
                     if not in_boundary:
-                        error_msg = "State file {} not in boundary of anchor {}".format(state_file, anchor_index)
-                        raise Exception(error_msg)
+                        in_boundary = False
+                    #    error_msg = "State file {} not ".format(state_file) \
+                    #        +"in boundary of anchor {}, ".format(state_file) \
+                    #        +"milestone alias_id {}".format(milestone.alias_id)
+                    #    raise Exception(error_msg)
+                    
+        if in_boundary:
+            new_state_files_list.append(state_file)
     
-    return state_files
+    return new_state_files_list
 
 def make_states_dict_one_anchor(model, anchor):
     states_dict = {}
