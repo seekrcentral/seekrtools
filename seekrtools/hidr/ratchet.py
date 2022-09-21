@@ -83,7 +83,10 @@ def delete_extra_state_files(model, anchor, max_states_per_boundary,
     return
 
 def extract_states_not_in_anchor(model, anchor_index, state_files):
-    TOL = 0.0
+    
+    # negative tolerance because we want to make sure that the system is
+    #  in the expected Voronoi cell.
+    TOL = -1.0e-4
     anchor = model.anchors[anchor_index]
     new_state_files_list = []
     for state_file in state_files:
@@ -101,7 +104,7 @@ def extract_states_not_in_anchor(model, anchor_index, state_files):
                     if not in_boundary:
                         in_boundary = False
                     #    error_msg = "State file {} not ".format(state_file) \
-                    #        +"in boundary of anchor {}, ".format(state_file) \
+                    #        +"in boundary of anchor {}, ".format(anchor.index) \
                     #        +"milestone alias_id {}".format(milestone.alias_id)
                     #    raise Exception(error_msg)
                     
@@ -159,7 +162,7 @@ def ratchet(model, cuda_device_index, pdb_files, states_per_anchor,
     # Initialize a defaultdict with force_overwrite as default value
     local_force_overwrite = defaultdict(lambda:force_overwrite)
     
-    states_dict = {}
+    states_dict = defaultdict(list) #{}
     assert states_per_anchor <= max_states_per_boundary, \
         "states_per_anchor cannot be more than max_states_per_boundary."
     if model.calculation_settings.restart_checkpoint_interval > steps_per_iter:
@@ -263,7 +266,9 @@ def ratchet(model, cuda_device_index, pdb_files, states_per_anchor,
             delete_extra_state_files(model, anchor, max_states_per_boundary, 
                 states_per_anchor)
             this_anchor_states_dict = make_states_dict_one_anchor(model, anchor)
-            states_dict.update(this_anchor_states_dict)
+            #states_dict.update(this_anchor_states_dict)
+            for anchor2 in this_anchor_states_dict:
+                states_dict[anchor2] += this_anchor_states_dict[anchor2]
             
         for anchor2_index in states_dict:
             if len(states_dict[anchor2_index]) >= states_per_anchor \
