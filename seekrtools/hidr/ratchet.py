@@ -99,9 +99,9 @@ def extract_states_not_in_anchor(model, anchor_index, state_files):
         for cv in model.collective_variables:
             for milestone in anchor.milestones:
                 if milestone.cv_index == cv.index:
-                    in_boundary = cv.check_openmm_context_within_boundary(
+                    in_milestone = cv.check_openmm_context_within_boundary(
                         context, milestone.variables, tolerance=TOL)
-                    if not in_boundary:
+                    if not in_milestone:
                         in_boundary = False
                     #    error_msg = "State file {} not ".format(state_file) \
                     #        +"in boundary of anchor {}, ".format(anchor.index) \
