@@ -162,7 +162,7 @@ def ratchet(model, cuda_device_index, pdb_files, states_per_anchor,
     # Initialize a defaultdict with force_overwrite as default value
     local_force_overwrite = defaultdict(lambda:force_overwrite)
     
-    states_dict = defaultdict(list) #{}
+    states_dict = {}
     assert states_per_anchor <= max_states_per_boundary, \
         "states_per_anchor cannot be more than max_states_per_boundary."
     if model.calculation_settings.restart_checkpoint_interval > steps_per_iter:
@@ -268,7 +268,7 @@ def ratchet(model, cuda_device_index, pdb_files, states_per_anchor,
             this_anchor_states_dict = make_states_dict_one_anchor(model, anchor)
             #states_dict.update(this_anchor_states_dict)
             for anchor2 in this_anchor_states_dict:
-                states_dict[anchor2] += this_anchor_states_dict[anchor2]
+                states_dict[anchor2] = this_anchor_states_dict[anchor2]
             
         for anchor2_index in states_dict:
             if len(states_dict[anchor2_index]) >= states_per_anchor \
