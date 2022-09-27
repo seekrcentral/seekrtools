@@ -86,7 +86,7 @@ def extract_states_not_in_anchor(model, anchor_index, state_files):
     
     # negative tolerance because we want to make sure that the system is
     #  in the expected Voronoi cell.
-    TOL = -1.0e-4
+    TOL = -0.001
     anchor = model.anchors[anchor_index]
     new_state_files_list = []
     for state_file in state_files:
@@ -350,9 +350,9 @@ if __name__ == "__main__":
         "there is no minimum timesteps per anchor. Instead, an anchor is "\
         "assumed completed if all the boundaries have been hit.")
     argparser.add_argument(
-        "-S", "--steps_per_iter", dest="steps_per_iter", default=1000,
+        "-S", "--steps_per_iter", dest="steps_per_iter", default=10000,
         type=int, help="The number of steps to take per iteration. Default: "\
-        "1000")
+        "10000")
     argparser.add_argument(
         "-e", "--finish_on_endstates", dest="finish_on_endstates", 
         default=False, help="Toggle whether to end the ratchet simulation "\
