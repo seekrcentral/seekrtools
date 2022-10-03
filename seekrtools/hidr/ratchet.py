@@ -148,7 +148,8 @@ def obtain_required_states(model):
 def ratchet(model, cuda_device_index, pdb_files, states_per_anchor, 
             max_states_per_boundary, steps_per_iter, 
             minimum_timesteps_per_anchor=0, toy_coordinates=None, 
-            force_overwrite=False, finish_on_endstates=False):
+            force_overwrite=False, finish_on_endstates=False,
+            frames_per_anchor=100):
     """
     Use the ratchet method to move the system across the CV space.
     """
@@ -159,6 +160,13 @@ def ratchet(model, cuda_device_index, pdb_files, states_per_anchor,
         reached_bulk_state = True
     else:
         reached_bulk_state = False
+    
+    if frames_per_anchor > 0 and minimum_timesteps_per_anchor > 0:
+        frame_interval = minimum_timesteps_per_anchor / frames_per_anchor
+        model.calculation_settings.energy_reporter_interval = frame_interval
+        model.calculation_settings.trajectory_reporter_interval = frame_interval
+        model.calculation_settings.restart_checkpoint_interval = frame_interval
+    
     # Initialize a defaultdict with force_overwrite as default value
     local_force_overwrite = defaultdict(lambda:force_overwrite)
     
@@ -237,6 +245,7 @@ def ratchet(model, cuda_device_index, pdb_files, states_per_anchor,
             print("total_simulation_length:", total_simulation_length)
             print("steps_per_iter:", steps_per_iter)
             print("anchor_counter[incomplete_anchor]:", anchor_counter[incomplete_anchor])
+            print("states_to_run:", states_to_run)
             run.run(model, str(incomplete_anchor), save_state_file=True,
                     load_state_file=states_to_run,
                     force_overwrite=local_force_overwrite[incomplete_anchor], 
@@ -357,6 +366,9 @@ if __name__ == "__main__":
         "-e", "--finish_on_endstates", dest="finish_on_endstates", 
         default=False, help="Toggle whether to end the ratchet simulation "\
         "once every end state is reached.", action="store_true")
+    argparser.add_argument(
+        "-F", "--frames_per_anchor", dest="frames_per_anchor", default=100,
+        type=int, help="The number of frames per anchor. Default: 100")
     
     args = argparser.parse_args()
     args = vars(args)
@@ -370,6 +382,7 @@ if __name__ == "__main__":
     minimum_timesteps_per_anchor = args["minimum_timesteps_per_anchor"]
     steps_per_iter = args["steps_per_iter"]
     finish_on_endstates = args["finish_on_endstates"]
+    frames_per_anchor = args["frames_per_anchor"]
     if max_states_per_boundary == 0:
         max_states_per_boundary = states_per_anchor
     
@@ -377,4 +390,4 @@ if __name__ == "__main__":
     ratchet(model, cuda_device_index, pdb_files, states_per_anchor, 
             max_states_per_boundary, steps_per_iter, 
             minimum_timesteps_per_anchor, toy_coordinates, force_overwrite, 
-            finish_on_endstates)
+            finish_on_endstates, frames_per_anchor)

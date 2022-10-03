@@ -123,8 +123,11 @@ def load_anchor_dcd_files(model, anchor, stride=None):
     mmvt_traj_basename = mmvt_base.OPENMMVT_BASENAME+"*.dcd"
     mmvt_traj_glob = os.path.join(prod_directory, mmvt_traj_basename)
     mmvt_traj_filenames = glob.glob(mmvt_traj_glob)
-    assert len(mmvt_traj_filenames) > 0, "Anchor {} has no dcd files.".format(
-        anchor.index)
+    #assert len(mmvt_traj_filenames) > 0, "Anchor {} has no dcd files.".format(
+    #    anchor.index)
+    if len(mmvt_traj_filenames) == 0:
+        return None
+    
     if model.using_toy():
         pdb_filename = os.path.join(building_directory, "toy.pdb")
         top_filename = pdb_filename
@@ -158,6 +161,10 @@ def make_fragment_list(model, stride=None):
         # Read the MMVT output files for this anchor
         anchor_fragment_dict = anchor_mmvt_output_slicer_dicer(model, anchor)
         traj = load_anchor_dcd_files(model, anchor, stride)
+        if traj is None:
+            all_anchors_fragment_list.append(None)
+            continue
+        
         print("traj.n_frames:", traj.n_frames)
         for key in anchor_fragment_dict:
             fragment_list = anchor_fragment_dict[key]
@@ -187,6 +194,8 @@ def long_sequence_from_fragments(model, all_anchors_fragment_list,
     current_anchor_index = starting_anchor_index
     
     anchor_frag_dict = all_anchors_fragment_list[starting_anchor_index]
+    assert anchor_frag_dict is not None, \
+        "starting anchor must have trajectories."
     first_key = list(anchor_frag_dict.keys())[0]
     fragment_list = anchor_frag_dict[first_key]
     #current_fragment = random.choice(fragment_list)
@@ -236,6 +245,10 @@ def long_sequence_from_fragments(model, all_anchors_fragment_list,
             times_visited_states[current_anchor_index] += 1
         
         next_anchor_fragment_dict = all_anchors_fragment_list[next_anchor_index]
+        if next_anchor_fragment_dict is None:
+            raise Exception("Empty anchor {} has no trajectory fragments."\
+                            .format(next_anchor_index))
+            
         next_anchor_fragment_list = next_anchor_fragment_dict[
             dest_milestone_index]
         assert len(next_anchor_fragment_list) > 0, \
