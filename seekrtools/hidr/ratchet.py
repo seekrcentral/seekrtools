@@ -246,12 +246,13 @@ def ratchet(model, cuda_device_index, pdb_files, states_per_anchor,
             print("steps_per_iter:", steps_per_iter)
             print("anchor_counter[incomplete_anchor]:", anchor_counter[incomplete_anchor])
             print("states_to_run:", states_to_run)
+            print("local_force_overwrite[incomplete_anchor]:", local_force_overwrite[incomplete_anchor])
             run.run(model, str(incomplete_anchor), save_state_file=True,
                     load_state_file=states_to_run,
                     force_overwrite=local_force_overwrite[incomplete_anchor], 
                     min_total_simulation_length=total_simulation_length, 
                     cuda_device_index=cuda_device_index)
-            
+            print("running finished.")
             anchor_counter[incomplete_anchor] += 1
             if incomplete_anchor in anchors_to_run_sorted:
                 anchors_to_run_sorted.remove(incomplete_anchor)
