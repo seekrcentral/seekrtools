@@ -162,7 +162,7 @@ def ratchet(model, cuda_device_index, pdb_files, states_per_anchor,
         reached_bulk_state = False
     
     if frames_per_anchor > 0 and minimum_timesteps_per_anchor > 0:
-        frame_interval = minimum_timesteps_per_anchor / frames_per_anchor
+        frame_interval = minimum_timesteps_per_anchor // frames_per_anchor
         model.calculation_settings.energy_reporter_interval = frame_interval
         model.calculation_settings.trajectory_reporter_interval = frame_interval
         model.calculation_settings.restart_checkpoint_interval = frame_interval
