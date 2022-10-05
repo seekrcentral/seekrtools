@@ -240,6 +240,8 @@ def ratchet(model, cuda_device_index, pdb_files, states_per_anchor,
                 states_to_run = None
             
             print("running anchor:", incomplete_anchor)
+            my_dir = os.path.join(model.anchor_rootdir, anchor.directory, "prod")
+            print("prod directory contents:", os.listdir(my_dir))
             total_simulation_length = steps_per_iter\
                 *(anchor_counter[incomplete_anchor]+1)
             print("total_simulation_length:", total_simulation_length)
