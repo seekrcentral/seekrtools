@@ -13,14 +13,11 @@ PMID: 19466817.
 import os
 import glob
 import argparse
-from math import exp
 from collections import defaultdict
 from shutil import copyfile
 
 import numpy as np
-from scipy.spatial import Voronoi, voronoi_plot_2d
 from scipy.interpolate import splprep, splev
-import matplotlib.pyplot as plt
 
 import seekr2.modules.common_base as base
 import seekr2.modules.mmvt_base as mmvt_base
@@ -30,99 +27,73 @@ import seekr2.run as run
 import seekr2.modules.runner_openmm as runner_openmm
 import seekr2.modules.check as check
 
-PLOTS_DIRECTORY_NAME = "string_method_plots"
+import seekrtools.hidr.hidr_base as hidr_base
+
+
 STRING_MODEL_GLOB = "model_pre_string_*.xml"
 STRING_MODEL_BASE = "model_pre_string_{}.xml"
 
-def plot_voronoi_tesselation(model, boundaries):
-    points = []
+STRING_LOG_FILENAME = "string.log"
+STRING_OUTPUT = "string_output.pdb"
+
+def log_string_results(model, iteration, anchor_cv_values):
+    log_filename = os.path.join(model.anchor_rootdir, STRING_LOG_FILENAME)
+    if iteration == 0:
+        log_file = open(log_filename, "w")
+        log_file.write("#anchor_id\tcv_value\tsampled_points\n")
+    else:
+        log_file = open(log_filename, "a")
+    log_file.write("iteration: {}\n".format(iteration))
+    
     for alpha, anchor in enumerate(model.anchors):
-        values = []
-        assert len(anchor.variables) == 2
-        for i in range(2):
+        log_file.write("anchor: {}\t[".format(alpha))
+        for i in range(len(anchor.variables)):
+            if i == 0:
+                sep1 = ""
+            else:
+                sep1 = ", "
             var_name = "value_0_{}".format(i)
             value_i = anchor.variables[var_name]
-            values.append(value_i)
-            
-        points.append(values)
-    
-    points.append([-100, -100])
-    points.append([100, 100])
-    
-    vor = Voronoi(points)
-    fig = voronoi_plot_2d(vor, line_width=2, show_vertices=False)
-    ax = plt.gca()
-    ax.axis(boundaries)
-    ax.set_aspect('equal', adjustable='box')
-    
-    return fig, ax
-
-def plot_muller_potential(model, plot_dir, iteration, anchor_cv_values):
-    potential_energy_expression = "-20*exp(-1 * (x1 - 1)**2 + 0 * (x1 - 1) "\
-        "* (y1 - 0) - 10 * (y1 - 0)**2) - 10*exp(-1 * (x1 - 0)**2 + "\
-        "0 * (x1 - 0) * (y1 - 0.5) - 10 * (y1 - 0.5)**2) - "\
-        "17*exp(-6.5 * (x1 + 0.5)**2 + 11 * (x1 + 0.5) * (y1 - 1.5) "\
-        "- 6.5 * (y1 - 1.5)**2) + 1.5*exp(0.7 * (x1 + 1)**2 + 0.6 * (x1 + 1) "\
-        "* (y1 - 1) + 0.7 * (y1 - 1)**2)"
-    title = "Muller Potential System"
-    boundaries = np.array([-1.5, 1.2, -0.2, 2.0])
-    landscape_resolution=100
-    max_Z=20
-    fig, ax = plot_voronoi_tesselation(model, boundaries)
-    min_x = boundaries[0]
-    max_x = boundaries[1]
-    min_y = boundaries[2]
-    max_y = boundaries[3]
-    bounds_x = np.linspace(min_x, max_x, landscape_resolution)
-    bounds_y = np.linspace(min_y, max_y, landscape_resolution)
-    X,Y = np.meshgrid(bounds_x, bounds_y)
-    Z = np.zeros((landscape_resolution, landscape_resolution))
-    for i, x1 in enumerate(bounds_x):
-        for j, y1 in enumerate(bounds_y):
-            # fill out landscape here
-            Z[j,i] = eval(potential_energy_expression)
-            if Z[j,i] > max_Z:
-                Z[j,i] = max_Z
-    
-    p = ax.pcolor(X, Y, Z, cmap=plt.cm.jet, vmin=Z.min(), vmax=Z.max())
-    ax.set_title(title)
-    ax.set_xlabel("$x_{1}$ (nm)")
-    ax.set_ylabel("$y_{1}$ (nm)")
-    cbar = plt.colorbar(p)
-    cbar.set_label("Energy (kcal/mol)")
-    
-    # Add trajectory points
-    for alpha in anchor_cv_values:
-        for point in anchor_cv_values[alpha]:
-            circle = plt.Circle(point, 0.005, color="w", zorder=2.5, alpha=0.5)
-            ax.add_patch(circle)
-    
-    # Add iteration label in upper corner
-    time_str = "iteration: {}".format(iteration)
-    font = {"weight":"bold"}
-    plt.text(-1.4, 1.9, time_str, fontdict=font)
-    
-    #plt.show()
-    if not os.path.exists(plot_dir):
-        os.mkdir(plot_dir)
-    plot_filename = os.path.join(plot_dir, "muller_{}.png".format(iteration))
-    plt.savefig(plot_filename)
+            #values.append(value_i)
+            log_file.write("{}{:.3f}".format(sep1, value_i))
         
+        log_file.write("]\t[")
+        #log_file.write(",{}".format(values))
+        for i, point in enumerate(anchor_cv_values[alpha]):
+            if i == 0:
+                sep1 = ""
+            else:
+                sep1 = "\t"
+            log_file.write("{}[".format(sep1))
+            for j, val in enumerate(point):
+                if j == 0:
+                    sep2 = ""
+                else:
+                    sep2 = ", "
+                log_file.write("{}{:.3f}".format(sep2, val))
+            log_file.write("]")
+        
+        log_file.write("]\n")
+    
+    log_file.close()
+    
     return
-
-def get_cv_values(model, anchor, voronoi_cv):
+        
+def get_cv_values(model, anchor, voronoi_cv, mode="mmvt_traj"):
     values = []
-    traj = check.load_structure_with_mdtraj(model, anchor, mode="mmvt_traj")
+    traj = check.load_structure_with_mdtraj(model, anchor, mode=mode)
     num_frames = traj.n_frames
     for i in range(num_frames):
         values.append(voronoi_cv.get_mdtraj_cv_value(traj, i))
     return values
 
-def move_anchors(model, anchor_cv_values, convergence_factor, smoothing_factor):
+def interpolate_points(model, anchor_cv_values, convergence_factor, smoothing_factor):
     old_anchor_values = []
     num_variables = len(model.anchors[0].variables)
     num_anchors = len(model.anchors)
     for alpha, anchor in enumerate(model.anchors):
+        if anchor.bulkstate:
+            continue
         values = []
         for i in range(num_variables):
             var_name = "value_0_{}".format(i)
@@ -134,6 +105,8 @@ def move_anchors(model, anchor_cv_values, convergence_factor, smoothing_factor):
     
     avg_anchor_values = []
     for alpha, anchor in enumerate(model.anchors):
+        if anchor.bulkstate:
+            continue
         this_anchor_values = np.array(anchor_cv_values[alpha])
         avg_values = []
         for i in range(num_variables):
@@ -145,7 +118,7 @@ def move_anchors(model, anchor_cv_values, convergence_factor, smoothing_factor):
     
     adjusted_anchor_values = (1.0-convergence_factor)*old_anchor_values \
         + convergence_factor*avg_anchor_values
-    
+        
     vector_array_list = []
     for i in range(num_variables):
         variable_i_list = []
@@ -157,12 +130,16 @@ def move_anchors(model, anchor_cv_values, convergence_factor, smoothing_factor):
     u2 = np.linspace(0, 1, num_anchors)
     new_points = splev(u2, tck)
     
+    """
     for alpha, anchor in enumerate(model.anchors):
+        if anchor.bulkstate:
+            continue
         for i in range(num_variables):
             var_name = "value_0_{}".format(i)
             anchor.variables[var_name] = new_points[i][alpha]
+    """
     
-    return
+    return np.array(new_points).T
 
 def save_new_model(model, save_old_model=True):
     """
@@ -213,10 +190,47 @@ def redefine_anchor_neighbors(model, voronoi_cv):
                     len(voronoi_cv.child_cvs))
     return
                 
-def define_new_starting_states(model, voronoi_cv, anchor_cv_values):
+def define_new_starting_states(model, voronoi_cv, anchor_cv_values, 
+                               ideal_points, stationary_alphas):
+    num_variables = len(model.anchors[0].variables)
     for alpha, anchor in enumerate(model.anchors):
-        traj = check.load_structure_with_mdtraj(model, anchor, mode="mmvt_traj")
-        num_frames = traj.n_frames
+        ideal_point = ideal_points[alpha]
+        if anchor.bulkstate or alpha in stationary_alphas:
+            # TODO: assign anchor location here??
+            continue
+        
+        best_dist = 1e99
+        best_alpha2 = None
+        best_index = None
+        for alpha2, anchor2 in enumerate(model.anchors):
+            for index, anchor_cv_value in enumerate(anchor_cv_values[alpha2]):
+                anchor_cv_value_array = np.array(anchor_cv_value)
+                dist = np.linalg.norm(ideal_point - anchor_cv_value_array)
+                if dist < best_dist:
+                    best_dist = dist
+                    best_alpha2 = alpha2
+                    best_index = index
+        
+        best_anchor = model.anchors[best_alpha2]
+        for i in range(num_variables):
+            var_name = "value_0_{}".format(i)
+            anchor.variables[var_name] \
+                = anchor_cv_values[best_alpha2][best_index][i]
+        
+        traj = check.load_structure_with_mdtraj(
+            model, best_anchor, mode="mmvt_traj")
+        if model.using_toy():
+            new_positions = traj.xyz[best_index, :,:]
+            anchor.starting_positions = np.array([new_positions])
+        else:
+            positions_filename = os.path.join(
+                model.anchor_rootdir, anchor.directory, 
+                anchor.building_directory, STRING_OUTPUT)
+            traj[best_index].save_pdb(
+                positions_filename, force_overwrite=True)
+            hidr_base.change_anchor_pdb_filename(anchor, STRING_OUTPUT)
+    
+    """
         anchor_points = []
         for i in range(len(anchor.variables)):
             var_name = "value_0_{}".format(i)
@@ -224,13 +238,20 @@ def define_new_starting_states(model, voronoi_cv, anchor_cv_values):
             anchor_points.append(anchor_point)
         
         anchor_points_array = np.array(anchor_points)
+        
+        
         dists = []
         for frame_id, anchor_cv_value in enumerate(anchor_cv_values[alpha]):
             # find dist between anchor_point and cv_value
             anchor_cv_value_array = np.array(anchor_cv_value)
-            dist = np.linalg.norm(anchor_points_array - anchor_cv_value_array)
+            dist = np.linalg.norm(ideal_points - anchor_cv_value_array)
             dists.append(dist)
-            
+            #print("frame_id:", frame_id,
+            #      "anchor_cv_value_array:", anchor_cv_value_array,
+            #      "anchor_points_array:", anchor_points_array, 
+            #      "dist:", dist)
+        
+        
         sort_index = np.argsort(np.array(dists))        
         starting_frame = None
         for index in sort_index:
@@ -244,9 +265,13 @@ def define_new_starting_states(model, voronoi_cv, anchor_cv_values):
                 starting_frame = index
                 break
         
+        
+        # Assign anchor location here
+        
         if starting_frame is None:
             raise Exception(
                 "Suitable next state not found in anchor {}".format(alpha))
+        
         
         new_positions = traj.xyz[starting_frame, :,:]
         if model.using_toy():
@@ -257,39 +282,99 @@ def define_new_starting_states(model, voronoi_cv, anchor_cv_values):
                 anchor.building_directory, "string_output.pdb")
             traj[starting_frame].save_pdb(
                 positions_filename, force_overwrite=True)
-    
+        """
     return
 
-def ftsm(model, cuda_device_index, iterations, points_per_iter, steps_per_iter, 
-         stationary_states, convergence_factor, smoothing_factor):
+def initialize_stationary_states(model, stationary_states):
+    if stationary_states == "":
+        stationary_alphas = []
+    else:
+        stationary_alphas = stationary_states.split(",")
+        for stationary_alpha in stationary_alphas:
+            stationary_alpha_int = int(stationary_alpha)
+            assert stationary_alpha_int >= 0, "stationary_states must only "\
+                "include integers greater than or equal to zero."
+            assert stationary_alpha_int < len(model.anchors), "stationary_states "\
+                "must only include integers less than the number of anchors."
+    
+    return stationary_alphas
+
+def create_swarm(model, alpha, swarm_size):
+    anchor = model.anchors[alpha]
+    if model.using_toy():
+        starting_coords_shape = anchor.starting_positions.shape
+        assert starting_coords_shape[0] == 1, \
+            "Swarms may not already exist when using the string method."
+            
+    else:
+        pass
+        
+    if swarm_size == 1:
+        return
+    else:
+        if model.using_toy():
+            new_starting_coords = np.zeros(
+                (swarm_size, starting_coords_shape[1], 3))
+            for i in range(swarm_size):
+                new_starting_coords[i,:,:] = anchor.starting_positions[0,:,:]
+            
+            anchor.starting_positions = new_starting_coords
+            
+        else:
+            pdb_file = hidr_base.get_anchor_pdb_filename(anchor)
+            assert isinstance(pdb_file, str), \
+                "Swarms may not already exist when using the string method."
+            pdb_file_list = [pdb_file] * swarm_size
+            hidr_base.change_anchor_pdb_filename(anchor, pdb_file_list)
+        
+    return
+        
+
+def ftsm(model, cuda_device_index=None, iterations=100, points_per_iter=100, 
+         steps_per_iter=10000, stationary_states="", convergence_factor=0.2, 
+         smoothing_factor=0.0, swarm_size=1):
     assert isinstance(model.collective_variables[0], mmvt_base.MMVT_Voronoi_CV)
     assert len(model.collective_variables) == 1
     assert steps_per_iter % points_per_iter == 0, \
         "points_per_iter must be a multiple of steps_per_iter"
     voronoi_cv = model.collective_variables[0]
-    plot_dir = os.path.join(model.anchor_rootdir, PLOTS_DIRECTORY_NAME)
+    
     states = defaultdict(lambda: None)
     anchor_cv_values = defaultdict(list)
-    
     frame_interval = steps_per_iter // points_per_iter
     model.calculation_settings.energy_reporter_interval = frame_interval
     model.calculation_settings.trajectory_reporter_interval = frame_interval
     model.calculation_settings.restart_checkpoint_interval = frame_interval
+    stationary_alphas = initialize_stationary_states(model, stationary_states)
+    
+    starting_anchor_cv_values = defaultdict(list)
+    for alpha, anchor in enumerate(model.anchors):
+        if anchor.bulkstate:
+            continue
+        starting_anchor_cv_values[alpha] = get_cv_values(
+            model, anchor, voronoi_cv, mode="pdb")
     
     for iteration in range(iterations):
         for alpha, anchor in enumerate(model.anchors):
+            if alpha in stationary_alphas or anchor.bulkstate:
+                continue
+            create_swarm(model, alpha, swarm_size)
             run.run(model, str(alpha), save_state_file=False,
                     load_state_file=states[alpha], 
                     force_overwrite=True, 
                     min_total_simulation_length=steps_per_iter, 
                     cuda_device_index=cuda_device_index)
             anchor_cv_values[alpha] = get_cv_values(model, anchor, voronoi_cv)
-            
-        plot_muller_potential(model, plot_dir, iteration, anchor_cv_values)
-        move_anchors(model, anchor_cv_values, convergence_factor, 
-                     smoothing_factor)
+        
+        #plot_muller_potential(model, plot_dir, iteration, anchor_cv_values)
+        log_string_results(model, iteration, anchor_cv_values)
+        ideal_points = interpolate_points(
+            model, anchor_cv_values, convergence_factor, smoothing_factor)
+        define_new_starting_states(model, voronoi_cv, anchor_cv_values, 
+                                   ideal_points, stationary_alphas)
+        
         redefine_anchor_neighbors(model, voronoi_cv)
-        define_new_starting_states(model, voronoi_cv, anchor_cv_values)
+        assert check.check_systems_within_Voronoi_cells(model)
         
     
     save_new_model(model)
@@ -314,7 +399,7 @@ if __name__ == "__main__":
         type=int, help="The number of iterations to take, per anchor")
     argparser.add_argument(
         "-P", "--points_per_iter", dest="points_per_iter", default=100,
-        type=int, help="The number of timesteps to take per iteration. "\
+        type=int, help="The number of position points to save per iteration. "\
         "Default: 100")
     argparser.add_argument(
         "-S", "--steps_per_iter", dest="steps_per_iter", default=10000,
@@ -329,11 +414,15 @@ if __name__ == "__main__":
         type=float, help="The aggressiveness of convergence. This value "\
         "should be between 0 and 1. A value too high, and the string method "\
         "might become numerically unstable. A value too low, and convergence "\
-        "will take a very long time. Default: 0.1")
+        "will take a very long time. Default: 0.2")
     argparser.add_argument(
         "-K", "--smoothing_factor", dest="smoothing_factor", default=0.0,
         type=float, help="The degree to smoothen the curve describing the "\
         "string going through each anchor. Default: 0.0")
+    argparser.add_argument(
+        "-w", "--swarm_size", dest="swarm_size", default=1,
+        type=int, help="The size of the swarm - that is, the number of "\
+        "replicas of the system moving concurrently. Default: 1")
     
     args = argparser.parse_args()
     args = vars(args)
@@ -345,7 +434,8 @@ if __name__ == "__main__":
     stationary_states = args["stationary_states"]
     convergence_factor = args["convergence_factor"]
     smoothing_factor = args["smoothing_factor"]
+    swarm_size = args["swarm_size"]
     
     model = base.load_model(model_file)
     ftsm(model, cuda_device_index, iterations, points_per_iter, steps_per_iter, 
-         stationary_states, convergence_factor, smoothing_factor)
+         stationary_states, convergence_factor, smoothing_factor, swarm_size)

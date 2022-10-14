@@ -301,6 +301,26 @@ def change_anchor_pdb_filename(anchor, new_pdb_filename):
         
     return
 
+def get_anchor_pdb_filename(anchor):
+    """
+    Obtain and return an anchor's starting structure filename.
+    
+    Parameters
+    ----------
+    anchor : Anchor()
+        For a given Anchor object, assign a new PDB file name into the
+        proper field, depending on whether the input parameters are
+        Amber, Charmm, etc.
+    """
+    if anchor.amber_params is not None:
+        return anchor.amber_params.pdb_coordinates_filename
+    
+    if anchor.forcefield_params is not None:
+        return anchor.forcefield_params.pdb_coordinates_filename
+        
+    if anchor.charmm_params is not None:
+        return anchor.charmm_params.pdb_coordinates_filename
+        
 def change_anchor_box_vectors(anchor, new_box_vectors):
     """
     Reassign an anchor's starting box vectors.
