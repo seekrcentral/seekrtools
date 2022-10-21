@@ -14,7 +14,11 @@ import os
 import glob
 import argparse
 from collections import defaultdict
+from collections.abc import Iterable
 from shutil import copyfile
+import multiprocessing
+import ast
+import time
 
 import numpy as np
 from scipy.interpolate import splprep, splev
@@ -46,6 +50,7 @@ def log_string_results(model, iteration, anchor_cv_values):
     log_file.write("iteration: {}\n".format(iteration))
     
     for alpha, anchor in enumerate(model.anchors):
+        
         log_file.write("anchor: {}\t[".format(alpha))
         for i in range(len(anchor.variables)):
             if i == 0:
@@ -56,6 +61,10 @@ def log_string_results(model, iteration, anchor_cv_values):
             value_i = anchor.variables[var_name]
             #values.append(value_i)
             log_file.write("{}{:.3f}".format(sep1, value_i))
+        
+        if alpha not in anchor_cv_values:
+            log_file.write("]\n")
+            continue
         
         log_file.write("]\t[")
         #log_file.write(",{}".format(values))
@@ -92,8 +101,6 @@ def interpolate_points(model, anchor_cv_values, convergence_factor, smoothing_fa
     num_variables = len(model.anchors[0].variables)
     num_anchors = len(model.anchors)
     for alpha, anchor in enumerate(model.anchors):
-        if anchor.bulkstate:
-            continue
         values = []
         for i in range(num_variables):
             var_name = "value_0_{}".format(i)
@@ -105,13 +112,15 @@ def interpolate_points(model, anchor_cv_values, convergence_factor, smoothing_fa
     
     avg_anchor_values = []
     for alpha, anchor in enumerate(model.anchors):
-        if anchor.bulkstate:
-            continue
-        this_anchor_values = np.array(anchor_cv_values[alpha])
-        avg_values = []
-        for i in range(num_variables):
-            avg_value = np.mean(this_anchor_values[:,i])
-            avg_values.append(avg_value)
+        if alpha in anchor_cv_values:
+            this_anchor_values = np.array(anchor_cv_values[alpha])
+            avg_values = []
+            for i in range(num_variables):
+                avg_value = np.mean(this_anchor_values[:,i])
+                avg_values.append(avg_value)
+        else:
+            avg_values = np.array(old_anchor_values[alpha])
+        
         avg_anchor_values.append(avg_values)
     
     avg_anchor_values = np.array(avg_anchor_values)
@@ -129,15 +138,6 @@ def interpolate_points(model, anchor_cv_values, convergence_factor, smoothing_fa
     tck, u, = splprep(vector_array_list, k=1, s=smoothing_factor)
     u2 = np.linspace(0, 1, num_anchors)
     new_points = splev(u2, tck)
-    
-    """
-    for alpha, anchor in enumerate(model.anchors):
-        if anchor.bulkstate:
-            continue
-        for i in range(num_variables):
-            var_name = "value_0_{}".format(i)
-            anchor.variables[var_name] = new_points[i][alpha]
-    """
     
     return np.array(new_points).T
 
@@ -171,12 +171,14 @@ def save_new_model(model, save_old_model=True):
     model.anchor_rootdir = old_rootdir
     return
 
-def redefine_anchor_neighbors(model, voronoi_cv):
+def redefine_anchor_neighbors(model, voronoi_cv, skip_checks=False):
     neighbor_anchor_indices = common_cv.find_voronoi_anchor_neighbors(
         model.anchors)
     milestone_index = 0
     for alpha, anchor in enumerate(model.anchors):
         anchor.milestones = []
+    
+    for alpha, anchor in enumerate(model.anchors):
         neighbor_anchor_alphas = neighbor_anchor_indices[alpha]
         assert len(neighbor_anchor_alphas) < 31, \
             "Only up to 31 neighbors allowed by the SEEKR2 plugin."
@@ -188,6 +190,9 @@ def redefine_anchor_neighbors(model, voronoi_cv):
                     anchor, alpha, neighbor_anchor, neighbor_anchor_alpha,
                     milestone_index, voronoi_cv.index, 
                     len(voronoi_cv.child_cvs))
+    
+    if not skip_checks:
+        check.check_pre_simulation_all(model)
     return
                 
 def define_new_starting_states(model, voronoi_cv, anchor_cv_values, 
@@ -203,6 +208,8 @@ def define_new_starting_states(model, voronoi_cv, anchor_cv_values,
         best_alpha2 = None
         best_index = None
         for alpha2, anchor2 in enumerate(model.anchors):
+            if alpha2 not in anchor_cv_values:
+                continue
             for index, anchor_cv_value in enumerate(anchor_cv_values[alpha2]):
                 anchor_cv_value_array = np.array(anchor_cv_value)
                 dist = np.linalg.norm(ideal_point - anchor_cv_value_array)
@@ -230,59 +237,6 @@ def define_new_starting_states(model, voronoi_cv, anchor_cv_values,
                 positions_filename, force_overwrite=True)
             hidr_base.change_anchor_pdb_filename(anchor, STRING_OUTPUT)
     
-    """
-        anchor_points = []
-        for i in range(len(anchor.variables)):
-            var_name = "value_0_{}".format(i)
-            anchor_point = anchor.variables[var_name]
-            anchor_points.append(anchor_point)
-        
-        anchor_points_array = np.array(anchor_points)
-        
-        
-        dists = []
-        for frame_id, anchor_cv_value in enumerate(anchor_cv_values[alpha]):
-            # find dist between anchor_point and cv_value
-            anchor_cv_value_array = np.array(anchor_cv_value)
-            dist = np.linalg.norm(ideal_points - anchor_cv_value_array)
-            dists.append(dist)
-            #print("frame_id:", frame_id,
-            #      "anchor_cv_value_array:", anchor_cv_value_array,
-            #      "anchor_points_array:", anchor_points_array, 
-            #      "dist:", dist)
-        
-        
-        sort_index = np.argsort(np.array(dists))        
-        starting_frame = None
-        for index in sort_index:
-            anchor_cv_value = anchor_cv_values[alpha][index]
-            in_boundary = True
-            for milestone in anchor.milestones:
-                if not voronoi_cv.check_value_within_boundary(anchor_cv_value,
-                                                          milestone.variables):
-                    in_boundary = False
-            if in_boundary:
-                starting_frame = index
-                break
-        
-        
-        # Assign anchor location here
-        
-        if starting_frame is None:
-            raise Exception(
-                "Suitable next state not found in anchor {}".format(alpha))
-        
-        
-        new_positions = traj.xyz[starting_frame, :,:]
-        if model.using_toy():
-            anchor.starting_positions = np.array([new_positions])
-        else:
-            positions_filename = os.path.join(
-                model.anchor_rootdir, anchor.directory, 
-                anchor.building_directory, "string_output.pdb")
-            traj[starting_frame].save_pdb(
-                positions_filename, force_overwrite=True)
-        """
     return
 
 def initialize_stationary_states(model, stationary_states):
@@ -297,7 +251,7 @@ def initialize_stationary_states(model, stationary_states):
             assert stationary_alpha_int < len(model.anchors), "stationary_states "\
                 "must only include integers less than the number of anchors."
     
-    return stationary_alphas
+    return list(map(int, stationary_alphas))
 
 def create_swarm(model, alpha, swarm_size):
     anchor = model.anchors[alpha]
@@ -328,11 +282,45 @@ def create_swarm(model, alpha, swarm_size):
             hidr_base.change_anchor_pdb_filename(anchor, pdb_file_list)
         
     return
-        
 
-def ftsm(model, cuda_device_index=None, iterations=100, points_per_iter=100, 
+def make_process_instructions(model, steps_per_iter, cuda_device_args, states,
+                              stationary_alphas):
+    process_instructions = []
+    if not isinstance(cuda_device_args, Iterable):
+        cuda_device_args = [cuda_device_args]
+    num_processes = len(cuda_device_args)
+    process_task_set = []
+    counter = 0
+    for alpha, anchor in enumerate(model.anchors):
+        if alpha in stationary_alphas or anchor.bulkstate:
+            continue
+        state = states[alpha]
+        idx = counter % num_processes
+        if idx == 0 and len(process_task_set) > 0:
+            process_instructions.append(process_task_set)
+            process_task_set = []
+        cuda_device_index = cuda_device_args[idx]
+        process_task = [model, alpha, state, steps_per_iter, cuda_device_index]
+        process_task_set.append(process_task)
+        counter += 1
+        
+    process_instructions.append(process_task_set)
+    process_task_set = []
+    return process_instructions
+
+def run_anchor_in_parallel(process_task):
+    model, alpha, state, steps_per_iter, cuda_device_index = process_task
+    run.run(model, str(alpha), save_state_file=False,
+            load_state_file=state, 
+            force_overwrite=True, 
+            min_total_simulation_length=steps_per_iter, 
+            cuda_device_index=cuda_device_index)
+    return
+
+def ftsm(model, cuda_device_args=None, iterations=100, points_per_iter=100, 
          steps_per_iter=10000, stationary_states="", convergence_factor=0.2, 
          smoothing_factor=0.0, swarm_size=1):
+    
     assert isinstance(model.collective_variables[0], mmvt_base.MMVT_Voronoi_CV)
     assert len(model.collective_variables) == 1
     assert steps_per_iter % points_per_iter == 0, \
@@ -340,7 +328,7 @@ def ftsm(model, cuda_device_index=None, iterations=100, points_per_iter=100,
     voronoi_cv = model.collective_variables[0]
     
     states = defaultdict(lambda: None)
-    anchor_cv_values = defaultdict(list)
+    anchor_cv_values = {} #defaultdict(list)
     frame_interval = steps_per_iter // points_per_iter
     model.calculation_settings.energy_reporter_interval = frame_interval
     model.calculation_settings.trajectory_reporter_interval = frame_interval
@@ -349,24 +337,42 @@ def ftsm(model, cuda_device_index=None, iterations=100, points_per_iter=100,
     
     starting_anchor_cv_values = defaultdict(list)
     for alpha, anchor in enumerate(model.anchors):
-        if anchor.bulkstate:
+        if anchor.bulkstate or alpha in stationary_alphas:
             continue
         starting_anchor_cv_values[alpha] = get_cv_values(
             model, anchor, voronoi_cv, mode="pdb")
-    
+        
     for iteration in range(iterations):
         for alpha, anchor in enumerate(model.anchors):
             if alpha in stationary_alphas or anchor.bulkstate:
                 continue
             create_swarm(model, alpha, swarm_size)
-            run.run(model, str(alpha), save_state_file=False,
-                    load_state_file=states[alpha], 
-                    force_overwrite=True, 
-                    min_total_simulation_length=steps_per_iter, 
-                    cuda_device_index=cuda_device_index)
-            anchor_cv_values[alpha] = get_cv_values(model, anchor, voronoi_cv)
         
-        #plot_muller_potential(model, plot_dir, iteration, anchor_cv_values)
+        process_instructions = make_process_instructions(
+            model, steps_per_iter, cuda_device_args, states,
+            stationary_alphas)
+        for process_task_set in process_instructions:
+            # loop through the serial list of parallel tasks
+            num_processes = len(process_task_set)
+            with multiprocessing.Pool(num_processes) as p:
+                p.map(run_anchor_in_parallel, process_task_set)
+            
+        """
+        for alpha, anchor in enumerate(model.anchors):
+            if alpha in stationary_alphas or anchor.bulkstate:
+                continue
+            create_swarm(model, alpha, swarm_size)
+            #run.run(model, str(alpha), save_state_file=False,
+            #        load_state_file=states[alpha], 
+            #        force_overwrite=True, 
+            #        min_total_simulation_length=steps_per_iter, 
+            #        cuda_device_index=cuda_device_index)
+            anchor_cv_values[alpha] = get_cv_values(model, anchor, voronoi_cv)
+        """
+        for alpha, anchor in enumerate(model.anchors):
+            if alpha in stationary_alphas or anchor.bulkstate:
+                continue
+            anchor_cv_values[alpha] = get_cv_values(model, anchor, voronoi_cv)
         log_string_results(model, iteration, anchor_cv_values)
         ideal_points = interpolate_points(
             model, anchor_cv_values, convergence_factor, smoothing_factor)
@@ -377,7 +383,6 @@ def ftsm(model, cuda_device_index=None, iterations=100, points_per_iter=100,
         assert check.check_systems_within_Voronoi_cells(model)
         
     
-    save_new_model(model)
     return
 
 if __name__ == "__main__":
@@ -385,15 +390,14 @@ if __name__ == "__main__":
     argparser.add_argument(
         "model_file", metavar="MODEL_FILE", type=str, 
         help="The name of model XML file for a SEEKR2 calculation. "\
-        "One or more starting structures must be present in one or more of "\
-        "the anchors.")
+        "All starting structures must be present in all anchors.")
     argparser.add_argument(
-        "-c", "--cuda_device_index", dest="cuda_device_index", default=None,
-        help="modify which cuda_device_index to run the simulation on. For "\
-        "example, the number 0 or 1 would suffice. To run on multiple GPU "\
-        "indices, simply enter comma separated indices. Example: '0,1'. If a "\
-        "value is not supplied, the value in the MODEL_FILE will be used by "\
-        "default.", type=str)
+        "-c", "--cuda_device_string", dest="cuda_device_string", default="None",
+        help="Specify a string defining how to handle parallel processing "\
+        "for the anchors in the string method. One could use a simple int "\
+        "or an entire list of ints. One may use default in the model file "\
+        "by passing None, or multiple CPUs by passing a list of Nones. "\
+        "Python syntax should be used.", type=str)
     argparser.add_argument(
         "-I", "--iterations", dest="iterations", default=100,
         type=int, help="The number of iterations to take, per anchor")
@@ -427,7 +431,7 @@ if __name__ == "__main__":
     args = argparser.parse_args()
     args = vars(args)
     model_file = args["model_file"]
-    cuda_device_index = args["cuda_device_index"]
+    cuda_device_args = ast.literal_eval(args["cuda_device_string"])
     iterations = args["iterations"]
     steps_per_iter = args["steps_per_iter"]
     points_per_iter = args["points_per_iter"]
@@ -437,5 +441,8 @@ if __name__ == "__main__":
     swarm_size = args["swarm_size"]
     
     model = base.load_model(model_file)
-    ftsm(model, cuda_device_index, iterations, points_per_iter, steps_per_iter, 
+    start_time = time.time()
+    ftsm(model, cuda_device_args, iterations, points_per_iter, steps_per_iter, 
          stationary_states, convergence_factor, smoothing_factor, swarm_size)
+    print("Time elapsed:", time.time() - start_time)
+    save_new_model(model)

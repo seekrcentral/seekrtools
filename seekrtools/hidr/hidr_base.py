@@ -47,7 +47,8 @@ def find_anchors_with_starting_structure(model):
     for i, anchor in enumerate(model.anchors):
         assert i == anchor.index
         if anchor.__class__.__name__ in ["MMVT_toy_anchor"]:
-            if len(anchor.starting_positions) > 0:
+            if anchor.starting_positions is not None \
+                    and len(anchor.starting_positions) > 0:
                 anchors_with_starting_structures.append(anchor.index)
         
         
@@ -412,6 +413,8 @@ def assign_toy_coords_to_model(model, toy_coordinates):
         if between_milestones:
             anchor.starting_positions = np.array(
                 [positions.value_in_unit(unit.nanometers)])
+            print("Assigning toy coord {} to anchor {}".format(
+                toy_coordinates, anchor.index))
             return anchor.index
     raise Exception("No starting anchor found for coordinates.")
     

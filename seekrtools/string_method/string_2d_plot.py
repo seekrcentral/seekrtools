@@ -27,10 +27,17 @@ def refine_function_str(old_function_str):
 
 def plot_voronoi_tesselation(model, boundaries, anchor_values):
     points = []
+    num_variables = len(model.anchors[0].variables)
     for alpha, anchor in enumerate(model.anchors):
-        if anchor.bulkstate:
-            continue
-        points.append(anchor_values[alpha])
+        #if anchor.bulkstate:
+        #    continue
+        if alpha in anchor_values:
+            points.append(anchor_values[alpha])
+        else:
+            values = []
+            for i in range(num_variables):
+                var_name = "value_0_{}".format(i)
+                values.append(anchor.variables[var_name])
     
     points.append([-100, -100])
     points.append([100, 100])
@@ -44,8 +51,8 @@ def plot_voronoi_tesselation(model, boundaries, anchor_values):
     return fig, ax, points[:-2]
 
 def plot_potential(model, plot_dir, iteration, anchor_values,
-                       trajectory_values, boundaries):
-    title = "UNKNOWN"
+                   trajectory_values, boundaries, title, x_coordinate_title, 
+                   y_coordinate_title):
     fig, ax, points = plot_voronoi_tesselation(model, boundaries, anchor_values)
     min_x = boundaries[0]
     max_x = boundaries[1]
@@ -73,8 +80,8 @@ def plot_potential(model, plot_dir, iteration, anchor_values,
         
         p = ax.pcolor(X, Y, Z, cmap=plt.cm.jet, vmin=Z.min(), vmax=Z.max())
         ax.set_title(title)
-        ax.set_xlabel("UNKNOWN")
-        ax.set_ylabel("UNKNOWN")
+        ax.set_xlabel(x_coordinate_title)
+        ax.set_ylabel(y_coordinate_title)
         cbar = plt.colorbar(p)
         cbar.set_label("Energy (kcal/mol)")
     
@@ -128,8 +135,8 @@ def parse_log_file(model, log_file_name):
                 line_list = line.strip().split("\t")
                 alpha = int(line_list[0].split(" ")[1])
                 cv_values_str = line_list[1].strip("[]").split(",")
-                if model.anchors[alpha].bulkstate:
-                    continue
+                #if model.anchors[alpha].bulkstate:
+                #    continue
                 cv_values_float = list(map(float, cv_values_str))
                 anchor_values[alpha] = cv_values_float
                 traj_pairs = line_list[2:]
@@ -170,7 +177,25 @@ def make_boundaries(anchor_values_by_iter):
                   max_y + margin]
     return boundaries
 
-def make_plots(model, plot_dir, log_file_name):
+"""
+def make_starting_plot(model, plot_dir, log_file_name, boundaries):
+    anchor_values = {}
+    num_variables = len(model.anchors[0].variables)
+    for alpha, anchor in enumerate(model.anchors):
+        values = []
+        for i in range(num_variables):
+            var_name = "value_0_{}".format(i)
+            values.append(anchor.variables[var_name])
+        anchor_values[alpha] = values
+    
+    plot_potential(model, plot_dir, "starting", 
+                       anchor_values,
+                       [],
+                       boundaries)
+"""
+
+def make_plots_from_log(model, plot_dir, log_file_name, title, 
+                        x_coordinate_title, y_coordinate_title):
     anchor_values_by_iter, trajectory_values_by_iter, max_iter \
         = parse_log_file(model, log_file_name)
     boundaries = make_boundaries(anchor_values_by_iter)
@@ -178,7 +203,9 @@ def make_plots(model, plot_dir, log_file_name):
         plot_potential(model, plot_dir, iteration, 
                        anchor_values_by_iter[iteration],
                        trajectory_values_by_iter[iteration],
-                       boundaries)
+                       boundaries, title, x_coordinate_title, 
+                       y_coordinate_title)
+    return boundaries
 
 if __name__ == "__main__":
     argparser = argparse.ArgumentParser(description=__doc__)
@@ -209,6 +236,7 @@ if __name__ == "__main__":
     model = base.load_model(model_file)
     plot_dir = os.path.join(model.anchor_rootdir, PLOTS_DIRECTORY_NAME)
     log_file_name = os.path.join(model.anchor_rootdir, STRING_LOG_FILENAME)
-    assert os.path.exists(log_file_name), "No log file found at: {}".format(
-        log_file_name)
-    make_plots(model, plot_dir, log_file_name)
+    boundaries = make_plots_from_log(model, plot_dir, log_file_name, title,
+                                     x_coordinate_title, y_coordinate_title)
+    #make_current_plot(model, plot_dir, boundaries)
+    

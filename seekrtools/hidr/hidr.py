@@ -11,6 +11,7 @@ import os
 import argparse
 import tempfile
 import glob
+import ast
 
 try:
     import openmm.unit as unit
@@ -41,13 +42,27 @@ def catch_erroneous_destination(destination):
             
     return True
 
-def hidr(model, destination, pdb_files=[], dry_run=False, equilibration_steps=0, 
-         skip_minimization=False, mode="SMD",
-         restraint_force_constant=90000.0*unit.kilojoules_per_mole/unit.nanometers**2, 
-         ramd_force_magnitude=14.0*unit.kilocalories_per_mole/unit.nanometers, 
-         translation_velocity=0.01*unit.nanometers/unit.nanoseconds, 
-         settling_steps=0, settling_frames=1, skip_checks=False, 
-         force_overwrite=False, traj_mode=False, smd_dcd_interval=None):
+def assign_pdb_or_toy_coords(model, pdb_files=None, toy_coordinates=None):
+    if model.using_toy():
+        for toy_coordinate in toy_coordinates:
+            assert len(toy_coordinate) == 3
+        hidr_base.assign_toy_coords_to_model(model, toy_coordinates)
+        
+    else:
+        for pdb_file in pdb_files:
+            hidr_base.assign_pdb_file_to_model(model, pdb_file)
+    return
+
+def hidr(model, destination, pdb_files=[], toy_coordinates=None, dry_run=False,
+         equilibration_steps=0, skip_minimization=False, mode="SMD",
+         restraint_force_constant=90000.0*unit.kilojoules_per_mole/unit.nanometers**2,
+         ramd_force_magnitude=14.0*unit.kilocalories_per_mole/unit.nanometers,
+         translation_velocity=0.01*unit.nanometers/unit.nanoseconds,
+         settling_steps=0, settling_frames=1, skip_checks=False,
+         force_overwrite=False, traj_mode=False, smd_dcd_interval=None,
+         ligand_atom_indices=None, receptor_atom_indices=None,
+         steps_per_RAMD_update=50, steps_per_anchor_check=250,
+         RAMD_cutoff_distance=0.0025, keeping_starting=True):
     """
     Run the full HIDR calculation for a model.
     
@@ -84,8 +99,7 @@ def hidr(model, destination, pdb_files=[], dry_run=False, equilibration_steps=0,
     assert mode in ["SMD", "RAMD"], "Incorrect mode option: {}. ".format(mode)\
         +"Available options are: 'SMD' and 'RAMD'."
     
-    for pdb_file in pdb_files:
-        hidr_base.assign_pdb_file_to_model(model, pdb_file)
+    assign_pdb_or_toy_coords(model, pdb_files, toy_coordinates)
     
     # Find all anchors with a starting structure
     anchors_with_starting_structures \
@@ -201,14 +215,21 @@ def hidr(model, destination, pdb_files=[], dry_run=False, equilibration_steps=0,
             print("running RAMD from anchor {} to anchor {}".format(
                 source_anchor_index, destination_anchor_indices))
             
-            # TODO: REDO HACK !!!
-            rec_indices = model.collective_variables[0].group1
-            lig_indices = model.collective_variables[0].group2
+            if ligand_atom_indices is None:
+                # TODO: REDO HACK !!!
+                rec_indices = model.collective_variables[0].get_atom_groups()[0]
+                lig_indices = model.collective_variables[0].get_atom_groups()[1]
+            else:
+                rec_indices = receptor_atom_indices
+                lig_indices = ligand_atom_indices
             
             ns_per_day = hidr_simulation.run_RAMD_simulation(
                 model, ramd_force_magnitude, source_anchor_index, 
                 destination_anchor_indices, lig_indices, rec_indices, 
-                traj_mode=traj_mode)
+                traj_mode=traj_mode, 
+                steps_per_RAMD_update=steps_per_RAMD_update, 
+                steps_per_anchor_check=steps_per_anchor_check,
+                RAMD_cutoff_distance_nanometers=RAMD_cutoff_distance)
             # save the new model file and check the generated structures
             print("Benchmark:", ns_per_day, "ns/day")
             hidr_base.save_new_model(model, save_old_model=True)
@@ -236,6 +257,9 @@ def hidr(model, destination, pdb_files=[], dry_run=False, equilibration_steps=0,
                 trajectory_name=settled_traj_filename,
                 assign_trajectory_to_model=True)
             hidr_base.save_new_model(model, save_old_model=False)
+    
+    if keeping_starting:
+        assign_pdb_or_toy_coords(model, pdb_files, toy_coordinates)
     
     if not skip_checks:
         print("Running pre-simulation checks...")
@@ -268,29 +292,35 @@ if __name__ == "__main__":
         "placed into the correct anchors. NOTE: the parameter/topology files "\
         "must already be assigned into an anchor for this to work.")
     argparser.add_argument(
+        "-t", "--toy_coordinates", dest="toy_coordinates", default="[]", 
+        metavar="[[x1, y1, z1], [x2, y2, z2], ...]", help="Enter the X, Y, Z "\
+        "coordinates for toy system's starting position. It will be "\
+        "automatically assigned to the correct anchor.")
+    argparser.add_argument(
         "-d", "--dry_run", dest="dry_run", default=False,
         help="Toggle a dry run to print information about HIDR's planned "\
-        "actions, and then quit.", action="store_true")
+        "actions, and then quit. Default: False.", action="store_true")
     argparser.add_argument(
         "-e", "--equilibration_steps", dest="equilibration_steps", 
         metavar="EQUILIBRATION_STEPS", type=int, default=0,
         help="Enter the number of steps of equilibration to run for the "\
-        "starting structure.")
+        "starting structure. Default: 0.")
     argparser.add_argument(
         "-m", "--skip_minimization", dest="skip_minimization", 
         default=False,
         help="Toggle this setting to skip minimizations before the "\
-        "equilibration of any starting structures.", action="store_true")
+        "equilibration of any starting structures. Default: False.", 
+        action="store_true")
     argparser.add_argument(
         "-k", "--restraint_force_constant", dest="restraint_force_constant",
         type=float, default=90000.0, 
         help="The force constant to use for restraints in units of "\
-        "kilojoules per mole per nanometer**2")
+        "kilojoules per mole per nanometer**2. Default: 90000.")
     argparser.add_argument(
         "-K", "--ramd_force_magnitude", dest="ramd_force_magnitude",
         type=float, default=14.0, 
         help="The force constant to use for the RAMD force in units of "\
-        "kilocalories per mole per angstrom.")
+        "kilocalories per mole per angstrom. Default: 14.0.")
     argparser.add_argument(
         "-v", "--translation_velocity", dest="translation_velocity",
         type=float, default=0.01, 
@@ -308,13 +338,13 @@ if __name__ == "__main__":
         metavar="SETTLING_FRAMES", type=int, default=1,
         help="If there is a nonzero number of --settling_steps, a swarm of "\
         "starting conformations can be generated for MMVT by entering a "\
-        "number here greater than 1.")
+        "number here greater than 1. Default: 1.")
     argparser.add_argument(
         "-s", "--skip_checks", dest="skip_checks", default=False, 
         help="By default, pre-simulation checks will be run after the "\
         "preparation is complete, and if the checks fail, the SEEKR2 "\
         "model will not be saved. This argument bypasses those "\
-        "checks and allows the model to be generated anyways.", 
+        "checks and allows the model to be generated anyways. Default: False.", 
         action="store_true")
     argparser.add_argument(
         "-c", "--cuda_device_index", dest="cuda_device_index", default=None,
@@ -335,6 +365,30 @@ if __name__ == "__main__":
         help="Toggle whether to enable trajectory mode for RAMD, which will "\
         "save all crossing events to be simulated in an MMVT swarm.", 
         action="store_true")
+    argparser.add_argument(
+        "-l", "--ligand_atom_indices", dest="ligand_atom_indices", default=None, 
+        metavar="[i1, i2, i3, ...]", help="Enter the atom indices "\
+        "of the ligand molecule for RAMD simulations. Default: None.")
+    argparser.add_argument(
+        "-r", "--receptor_atom_indices", dest="receptor_atom_indices", 
+        default=None, metavar="[r1, r2, r3, ...]", help="Enter the atom "\
+        "indices of the receptor molecule for RAMD simulations. Default: None.")
+    argparser.add_argument(
+        "-R", "--steps_per_RAMD_update", dest="steps_per_RAMD_update", 
+        metavar="STEPS_PER_RAMD_UPDATE", type=int, default=50,
+        help="How many simulation timesteps to take in RAMD simulations "\
+        "before checking whether the forces should be recomputed. Default: 50.")
+    argparser.add_argument(
+        "-u", "--steps_per_anchor_check", dest="steps_per_anchor_check", 
+        metavar="STEPS_PER_ANCHOR_CHECK", type=int, default=250,
+        help="How many simulation timesteps to wait before checking if new "\
+        "anchors have been reached. Default: 250.")
+    argparser.add_argument(
+        "-D", "--RAMD_cutoff_distance", dest="RAMD_cutoff_distance",
+        type=float, default=0.0025, 
+        help="The distance (in nm) at which if the ligand COMs of two "\
+        "consecutive updates have not exceeded, change the force direction. "\
+        "Default: 0.0025 nm.")
     
     args = argparser.parse_args() # parse the args into a dictionary
     args = vars(args)
@@ -342,6 +396,7 @@ if __name__ == "__main__":
     model_file = args["model_file"]
     mode = args["mode"]
     pdb_files = args["pdb_files"]
+    toy_coordinates = ast.literal_eval(args["toy_coordinates"])
     dry_run = args["dry_run"]
     equilibration_steps = args["equilibration_steps"]
     skip_minimization = args["skip_minimization"]
@@ -357,14 +412,31 @@ if __name__ == "__main__":
     cuda_device_index = args["cuda_device_index"]
     force_overwrite = args["force_overwrite"]
     traj_mode = args["traj_mode"]
+    ligand_atom_indices = args["ligand_atom_indices"]
+    receptor_atom_indices = args["receptor_atom_indices"]
+    steps_per_RAMD_update = args["steps_per_RAMD_update"]
+    steps_per_anchor_check = args["steps_per_anchor_check"]
+    RAMD_cutoff_distance = args["RAMD_cutoff_distance"]
+    if ligand_atom_indices is None:
+        assert receptor_atom_indices is None, \
+            "if ligand_atom_indices is None, receptor_atom_indices must also "\
+            "be None."
+    else:
+        ligand_atom_indices = ast.literal_eval(ligand_atom_indices)
+        if receptor_atom_indices is not None:
+            receptor_atom_indices = ast.literal_eval(receptor_atom_indices)
     
     model = base.load_model(model_file)
     if cuda_device_index is not None:
         assert model.openmm_settings.cuda_platform_settings is not None
         model.openmm_settings.cuda_platform_settings.cuda_device_index = \
             cuda_device_index
-    hidr(model, destination, pdb_files, dry_run, equilibration_steps, 
-         skip_minimization, mode, restraint_force_constant, 
+    hidr(model, destination, pdb_files, toy_coordinates, dry_run, 
+         equilibration_steps, skip_minimization, mode, restraint_force_constant, 
          ramd_force_magnitude, translation_velocity, 
          settling_steps, settling_frames, skip_checks, force_overwrite, 
-         traj_mode)
+         traj_mode, ligand_atom_indices=ligand_atom_indices, 
+         receptor_atom_indices=receptor_atom_indices,
+         steps_per_RAMD_update=steps_per_RAMD_update, 
+         steps_per_anchor_check=steps_per_anchor_check,
+         RAMD_cutoff_distance=RAMD_cutoff_distance)
