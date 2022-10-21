@@ -299,7 +299,7 @@ def make_process_instructions(model, steps_per_iter, cuda_device_args, states,
         if idx == 0 and len(process_task_set) > 0:
             process_instructions.append(process_task_set)
             process_task_set = []
-        cuda_device_index = cuda_device_args[idx]
+        cuda_device_index = str(cuda_device_args[idx])
         process_task = [model, alpha, state, steps_per_iter, cuda_device_index]
         process_task_set.append(process_task)
         counter += 1
