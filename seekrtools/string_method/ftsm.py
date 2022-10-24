@@ -19,6 +19,7 @@ from shutil import copyfile
 import multiprocessing
 import ast
 import time
+import re
 
 import numpy as np
 from scipy.interpolate import splprep, splev
@@ -37,11 +38,12 @@ import seekrtools.hidr.hidr_base as hidr_base
 STRING_MODEL_GLOB = "model_pre_string_*.xml"
 STRING_MODEL_BASE = "model_pre_string_{}.xml"
 
-STRING_LOG_FILENAME = "string.log"
+STRING_LOG_FILENAME = "string_{}.log"
+STRING_LOG_GLOB = "string*.log"
 STRING_OUTPUT = "string_output.pdb"
 
-def log_string_results(model, iteration, anchor_cv_values):
-    log_filename = os.path.join(model.anchor_rootdir, STRING_LOG_FILENAME)
+def log_string_results(model, iteration, anchor_cv_values, log_filename):
+    #log_filename = os.path.join(model.anchor_rootdir, STRING_LOG_FILENAME)
     if iteration == 0:
         log_file = open(log_filename, "w")
         log_file.write("#anchor_id\tcv_value\tsampled_points\n")
@@ -141,7 +143,7 @@ def interpolate_points(model, anchor_cv_values, convergence_factor, smoothing_fa
     
     return np.array(new_points).T
 
-def save_new_model(model, save_old_model=True):
+def save_new_model(model, save_old_model=True, overwrite_log=False):
     """
     At the end of a string method calculation, generate a new model file. The
     old model file(s) will be renamed.
@@ -154,22 +156,38 @@ def save_new_model(model, save_old_model=True):
         
     """
     model_path = os.path.join(model.anchor_rootdir, "model.xml")
-    if os.path.exists(model_path) and save_old_model:
+    string_model_glob = os.path.join(
+        model.anchor_rootdir, STRING_MODEL_GLOB)
+    num_globs = len(glob.glob(string_model_glob))
+    log_filename = os.path.join(model.anchor_rootdir, STRING_LOG_FILENAME.format(num_globs))
+    if save_old_model:
         # This is expected, because this old model was loaded
-        hidr_model_glob = os.path.join(model.anchor_rootdir, STRING_MODEL_GLOB)
-        num_globs = len(glob.glob(hidr_model_glob))
-        new_pre_hidr_model_filename = STRING_MODEL_BASE.format(num_globs)
-        new_pre_hidr_model_path = os.path.join(model.anchor_rootdir, 
-                                               new_pre_hidr_model_filename)
-        print("Renaming model.xml to {}".format(new_pre_hidr_model_filename))
-        copyfile(model_path, new_pre_hidr_model_path)
+        if os.path.exists(model_path):
+            new_pre_string_model_filename = STRING_MODEL_BASE.format(num_globs)
+            new_pre_string_model_path = os.path.join(model.anchor_rootdir, 
+                                                     new_pre_string_model_filename)
+            print("Renaming model.xml to {}".format(new_pre_string_model_filename))
+            copyfile(model_path, new_pre_string_model_path)
+    
+    if overwrite_log:
+        # Then see if an old log file exists below the correct number, and 
+        # if so, save it. But delete all numbered log files above the correct 
+        # number
+        log_glob = os.path.join(model.anchor_rootdir, STRING_LOG_GLOB)
+        log_files = glob.glob(log_glob)
+        for existing_log_file in log_files:
+            existing_log_basename = os.path.basename(existing_log_file)
+            log_file_index = int(re.findall(r"\d+", existing_log_basename)[0])
+            if log_file_index >= num_globs:
+                print("deleting log file:", existing_log_file)
+                os.remove(existing_log_file)
         
     print("Saving new model.xml")
     old_rootdir = model.anchor_rootdir
     model.anchor_rootdir = "."
     base.save_model(model, model_path)
     model.anchor_rootdir = old_rootdir
-    return
+    return log_filename
 
 def redefine_anchor_neighbors(model, voronoi_cv, skip_checks=False):
     neighbor_anchor_indices = common_cv.find_voronoi_anchor_neighbors(
@@ -299,7 +317,11 @@ def make_process_instructions(model, steps_per_iter, cuda_device_args, states,
         if idx == 0 and len(process_task_set) > 0:
             process_instructions.append(process_task_set)
             process_task_set = []
-        cuda_device_index = str(cuda_device_args[idx])
+        if cuda_device_args[idx] is None:
+            cuda_device_index = None
+        else:
+            cuda_device_index = str(cuda_device_args[idx])
+            
         process_task = [model, alpha, state, steps_per_iter, cuda_device_index]
         process_task_set.append(process_task)
         counter += 1
@@ -334,6 +356,7 @@ def ftsm(model, cuda_device_args=None, iterations=100, points_per_iter=100,
     model.calculation_settings.trajectory_reporter_interval = frame_interval
     model.calculation_settings.restart_checkpoint_interval = frame_interval
     stationary_alphas = initialize_stationary_states(model, stationary_states)
+    log_filename = save_new_model(model, save_old_model=True, overwrite_log=True)
     
     starting_anchor_cv_values = defaultdict(list)
     for alpha, anchor in enumerate(model.anchors):
@@ -373,13 +396,14 @@ def ftsm(model, cuda_device_args=None, iterations=100, points_per_iter=100,
             if alpha in stationary_alphas or anchor.bulkstate:
                 continue
             anchor_cv_values[alpha] = get_cv_values(model, anchor, voronoi_cv)
-        log_string_results(model, iteration, anchor_cv_values)
+        log_string_results(model, iteration, anchor_cv_values, log_filename)
         ideal_points = interpolate_points(
             model, anchor_cv_values, convergence_factor, smoothing_factor)
         define_new_starting_states(model, voronoi_cv, anchor_cv_values, 
                                    ideal_points, stationary_alphas)
         
         redefine_anchor_neighbors(model, voronoi_cv)
+        save_new_model(model, save_old_model=False, overwrite_log=False)
         assert check.check_systems_within_Voronoi_cells(model)
         
     
@@ -445,4 +469,4 @@ if __name__ == "__main__":
     ftsm(model, cuda_device_args, iterations, points_per_iter, steps_per_iter, 
          stationary_states, convergence_factor, smoothing_factor, swarm_size)
     print("Time elapsed:", time.time() - start_time)
-    save_new_model(model)
+    

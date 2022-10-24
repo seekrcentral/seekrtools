@@ -6,6 +6,7 @@ import os
 import argparse
 from math import exp
 import re
+import glob
 
 import numpy as np
 from scipy.spatial import Voronoi, voronoi_plot_2d
@@ -13,7 +14,7 @@ import matplotlib.pyplot as plt
 
 import seekr2.modules.common_base as base
 
-from seekrtools.string_method.ftsm import STRING_LOG_FILENAME
+from seekrtools.string_method.ftsm import STRING_LOG_GLOB
 
 PLOTS_DIRECTORY_NAME = "string_method_plots"
 
@@ -94,7 +95,7 @@ def plot_potential(model, plot_dir, iteration, anchor_values,
             continue
         for point in trajectory_values[alpha]:
             circle = plt.Circle(point, 0.005, color=my_color, zorder=2.5, alpha=0.5)
-            ax.add_patch(circle)
+            #ax.add_patch(circle)
             
     # Add lines to make string
     points_array = np.array(points).T
@@ -113,45 +114,49 @@ def plot_potential(model, plot_dir, iteration, anchor_values,
         
     return
 
-def parse_log_file(model, log_file_name):
+def parse_log_file(model, log_file_glob):
     anchor_values_by_iter = []
     trajectory_values_by_iter = []
-    iteration = -1
+    #iteration = -1
+    counter = 0
     anchor_values = None
     trajectory_values = None
-    with open(log_file_name, "r") as f:
-        for line in f.readlines():
-            if line.startswith("#"):
-                continue
-            elif line.startswith("iteration"):
-                line_list = line.strip().split(" ")
-                iteration = int(line_list[1])
-                if anchor_values is not None:
-                    anchor_values_by_iter.append(anchor_values)
-                    trajectory_values_by_iter.append(trajectory_values)
-                anchor_values = {}
-                trajectory_values = {}
-            elif line.startswith("anchor"):
-                line_list = line.strip().split("\t")
-                alpha = int(line_list[0].split(" ")[1])
-                cv_values_str = line_list[1].strip("[]").split(",")
-                #if model.anchors[alpha].bulkstate:
-                #    continue
-                cv_values_float = list(map(float, cv_values_str))
-                anchor_values[alpha] = cv_values_float
-                traj_pairs = line_list[2:]
-                traj_list = []
-                for traj_pair_str in traj_pairs:
-                    traj_values_str = traj_pair_str.strip("[]").split(",")
-                    traj_values_float = list(map(float, traj_values_str))
-                    traj_list.append(traj_values_float)
-                    
-                trajectory_values[alpha] = traj_list
+    log_file_list = base.order_files_numerically(glob.glob(log_file_glob))
+    for log_file_name in log_file_list:
+        with open(log_file_name, "r") as f:
+            for line in f.readlines():
+                if line.startswith("#"):
+                    continue
+                elif line.startswith("iteration"):
+                    line_list = line.strip().split(" ")
+                    iteration = int(line_list[1])
+                    if anchor_values is not None:
+                        anchor_values_by_iter.append(anchor_values)
+                        trajectory_values_by_iter.append(trajectory_values)
+                    anchor_values = {}
+                    trajectory_values = {}
+                    counter += 1
+                elif line.startswith("anchor"):
+                    line_list = line.strip().split("\t")
+                    alpha = int(line_list[0].split(" ")[1])
+                    cv_values_str = line_list[1].strip("[]").split(",")
+                    #if model.anchors[alpha].bulkstate:
+                    #    continue
+                    cv_values_float = list(map(float, cv_values_str))
+                    anchor_values[alpha] = cv_values_float
+                    traj_pairs = line_list[2:]
+                    traj_list = []
+                    for traj_pair_str in traj_pairs:
+                        traj_values_str = traj_pair_str.strip("[]").split(",")
+                        traj_values_float = list(map(float, traj_values_str))
+                        traj_list.append(traj_values_float)
+                        
+                    trajectory_values[alpha] = traj_list
                 
-        anchor_values_by_iter.append(anchor_values)
-        trajectory_values_by_iter.append(trajectory_values)
+            anchor_values_by_iter.append(anchor_values)
+            trajectory_values_by_iter.append(trajectory_values)
     
-    return anchor_values_by_iter, trajectory_values_by_iter, iteration+1
+    return anchor_values_by_iter, trajectory_values_by_iter, counter
 
 def make_boundaries(anchor_values_by_iter):
     margin = 0.2
@@ -194,10 +199,10 @@ def make_starting_plot(model, plot_dir, log_file_name, boundaries):
                        boundaries)
 """
 
-def make_plots_from_log(model, plot_dir, log_file_name, title, 
+def make_plots_from_logs(model, plot_dir, log_file_glob, title, 
                         x_coordinate_title, y_coordinate_title):
     anchor_values_by_iter, trajectory_values_by_iter, max_iter \
-        = parse_log_file(model, log_file_name)
+        = parse_log_file(model, log_file_glob)
     boundaries = make_boundaries(anchor_values_by_iter)
     for iteration in range(max_iter):
         plot_potential(model, plot_dir, iteration, 
@@ -235,8 +240,8 @@ if __name__ == "__main__":
     
     model = base.load_model(model_file)
     plot_dir = os.path.join(model.anchor_rootdir, PLOTS_DIRECTORY_NAME)
-    log_file_name = os.path.join(model.anchor_rootdir, STRING_LOG_FILENAME)
-    boundaries = make_plots_from_log(model, plot_dir, log_file_name, title,
+    log_file_glob = os.path.join(model.anchor_rootdir, STRING_LOG_GLOB)
+    boundaries = make_plots_from_logs(model, plot_dir, log_file_glob, title,
                                      x_coordinate_title, y_coordinate_title)
     #make_current_plot(model, plot_dir, boundaries)
     
