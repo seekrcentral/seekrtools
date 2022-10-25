@@ -95,7 +95,7 @@ def plot_potential(model, plot_dir, iteration, anchor_values,
             continue
         for point in trajectory_values[alpha]:
             circle = plt.Circle(point, 0.005, color=my_color, zorder=2.5, alpha=0.5)
-            #ax.add_patch(circle)
+            ax.add_patch(circle)
             
     # Add lines to make string
     points_array = np.array(points).T
@@ -117,7 +117,6 @@ def plot_potential(model, plot_dir, iteration, anchor_values,
 def parse_log_file(model, log_file_glob):
     anchor_values_by_iter = []
     trajectory_values_by_iter = []
-    #iteration = -1
     counter = 0
     anchor_values = None
     trajectory_values = None

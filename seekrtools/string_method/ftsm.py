@@ -10,6 +10,13 @@ PMID: 19466817.
 
 
 """
+# Enables global fork() followed by execve()
+#from multiprocessing import set_start_method
+#set_start_method("spawn")
+
+# Instead, this method will spawn using fork() and execve() for
+# just our own pools.
+
 import os
 import glob
 import argparse
@@ -377,7 +384,7 @@ def ftsm(model, cuda_device_args=None, iterations=100, points_per_iter=100,
         for process_task_set in process_instructions:
             # loop through the serial list of parallel tasks
             num_processes = len(process_task_set)
-            with multiprocessing.Pool(num_processes) as p:
+            with multiprocessing.get_context("spawn").Pool(num_processes) as p:
                 p.map(run_anchor_in_parallel, process_task_set)
             
         """
