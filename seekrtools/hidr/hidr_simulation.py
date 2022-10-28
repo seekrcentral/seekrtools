@@ -612,7 +612,7 @@ def run_RAMD_simulation(model, force_constant, source_anchor_index,
     if model.using_toy():
         tolerance = 0.0
     else:
-        tolerance = 0.001
+        tolerance = 0.0 #-0.001
     
     new_com = openmm_ramd.base.get_ligand_com(system, positions, lig_indices)
     start_time = time.time()
