@@ -181,8 +181,9 @@ def make_boundaries(anchor_values_by_iter):
                   max_y + margin]
     return boundaries
 
-"""
-def make_starting_plot(model, plot_dir, log_file_name, boundaries):
+
+def make_model_plot(model, plot_dir, title, x_coordinate_title, 
+                    y_coordinate_title, boundaries=None):
     anchor_values = {}
     num_variables = len(model.anchors[0].variables)
     for alpha, anchor in enumerate(model.anchors):
@@ -191,18 +192,21 @@ def make_starting_plot(model, plot_dir, log_file_name, boundaries):
             var_name = "value_0_{}".format(i)
             values.append(anchor.variables[var_name])
         anchor_values[alpha] = values
-    
-    plot_potential(model, plot_dir, "starting", 
-                       anchor_values,
-                       [],
-                       boundaries)
-"""
+    if boundaries is None:
+        boundaries = make_boundaries([anchor_values])
+    plot_potential(model, plot_dir, "model", anchor_values, [], boundaries, 
+                   title, x_coordinate_title, y_coordinate_title)
+    return boundaries
 
 def make_plots_from_logs(model, plot_dir, log_file_glob, title, 
                         x_coordinate_title, y_coordinate_title):
     anchor_values_by_iter, trajectory_values_by_iter, max_iter \
         = parse_log_file(model, log_file_glob)
-    boundaries = make_boundaries(anchor_values_by_iter)
+    if max_iter == 0:
+        boundaries = None
+    else:
+        boundaries = make_boundaries(anchor_values_by_iter)
+        
     for iteration in range(max_iter):
         plot_potential(model, plot_dir, iteration, 
                        anchor_values_by_iter[iteration],
@@ -242,5 +246,7 @@ if __name__ == "__main__":
     log_file_glob = os.path.join(model.anchor_rootdir, STRING_LOG_GLOB)
     boundaries = make_plots_from_logs(model, plot_dir, log_file_glob, title,
                                      x_coordinate_title, y_coordinate_title)
+    make_model_plot(model, plot_dir, title, x_coordinate_title, 
+                    y_coordinate_title, boundaries)
     #make_current_plot(model, plot_dir, boundaries)
     

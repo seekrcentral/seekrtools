@@ -566,6 +566,11 @@ def run_RAMD_simulation(model, force_constant, source_anchor_index,
     """
     #steps_per_RAMD_update = 50
     #steps_per_anchor_check = 250
+    # If True, then remove any starting structures if anchors are skipped
+    #  during RAMD.
+    removing_starting_from_skipped_structures = True
+    assert steps_per_anchor_check % steps_per_RAMD_update == 0, \
+        "steps_per_anchor_check must be a multiple of steps_per_RAMD_update."
     RAMD_cutoff_distance = RAMD_cutoff_distance_nanometers * unit.nanometer
     trajectory_reporter_interval = 50
     energy_reporter_interval = 50
@@ -700,6 +705,8 @@ def run_RAMD_simulation(model, force_constant, source_anchor_index,
                         var_string = hidr_base.make_var_string(destination_anchor)
                         hidr_output_pdb_name = RAMD_NAME.format(var_string, 0)
                         
+                        print("mark1. hidr_output_pdb_name:", hidr_output_pdb_name)
+                        
                         if model.using_toy():
                             new_positions = np.array([positions.value_in_unit(unit.nanometers)])
                             destination_anchor.starting_positions = new_positions
@@ -709,6 +716,9 @@ def run_RAMD_simulation(model, force_constant, source_anchor_index,
                                 model.anchor_rootdir, destination_anchor.directory,
                                 destination_anchor.building_directory,
                                 hidr_output_pdb_name)
+                            print("mark2. output_pdb_file:", output_pdb_file)
+                            print("mark2. destination_anchor.bulkstate:", destination_anchor.bulkstate)
+                            print("mark2. os.path.exists(output_pdb_file):", os.path.exists(output_pdb_file))
                             
                             if not destination_anchor.bulkstate \
                                     and not os.path.exists(output_pdb_file):
@@ -726,11 +736,22 @@ def run_RAMD_simulation(model, force_constant, source_anchor_index,
                         old_anchor = model.anchors[old_anchor_index]
                         var_string = hidr_base.make_var_string(old_anchor)
                         
+                        skipped_anchor_indices = list(range(
+                            min(old_anchor_index, destination_anchor_index)+1, 
+                            max(old_anchor_index, destination_anchor_index)))
+                        
                         if model.using_toy():
                             prev_positions = np.array([old_positions.value_in_unit(unit.nanometers)])
                             old_anchor.starting_positions = prev_positions
                             assert not traj_mode, \
                                 "Traj mode not currently allowed for toy systems."
+                            if removing_starting_from_skipped_structures:
+                                # Then remove all starting structures
+                                for skipped_anchor_index in skipped_anchor_indices:
+                                    print("removing starting structure from anchor:", skipped_anchor_index)
+                                    skipped_anchor = model.anchors[skipped_anchor_index]
+                                    skipped_anchor.starting_positions = None
+                                    
                         else:
                             hidr_output_pdb_name = RAMD_NAME.format(var_string, anchor_pdb_counters[old_anchor_index])
                             hidr_base.change_anchor_pdb_filename(
@@ -750,6 +771,14 @@ def run_RAMD_simulation(model, force_constant, source_anchor_index,
                                 anchor_pdb_filenames[old_anchor_index].append(output_pdb_file)
                             else:
                                 anchor_pdb_filenames[old_anchor_index] = [output_pdb_file]
+                                
+                            if removing_starting_from_skipped_structures:
+                                # Then remove all starting structures
+                                for skipped_anchor_index in skipped_anchor_indices:
+                                    print("removing starting structure from anchor:", skipped_anchor_index)
+                                    skipped_anchor = model.anchors[skipped_anchor_index]
+                                    hidr_base.change_anchor_pdb_filename(
+                                        skipped_anchor, "")
                         
                         old_anchor_index = i
                         old_positions = positions
