@@ -409,7 +409,7 @@ def ftsm(model, cuda_device_args=None, iterations=100, points_per_iter=100,
         define_new_starting_states(model, voronoi_cv, anchor_cv_values, 
                                    ideal_points, stationary_alphas)
         
-        redefine_anchor_neighbors(model, voronoi_cv)
+        redefine_anchor_neighbors(model, voronoi_cv, skip_checks=True)
         save_new_model(model, save_old_model=False, overwrite_log=False)
         assert check.check_systems_within_Voronoi_cells(model)
         

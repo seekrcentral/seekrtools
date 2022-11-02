@@ -321,6 +321,8 @@ def get_anchor_pdb_filename(anchor):
         
     if anchor.charmm_params is not None:
         return anchor.charmm_params.pdb_coordinates_filename
+    
+    return ""
         
 def change_anchor_box_vectors(anchor, new_box_vectors):
     """

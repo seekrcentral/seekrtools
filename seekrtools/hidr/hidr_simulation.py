@@ -25,6 +25,7 @@ except ModuleNotFoundError:
     import simtk.unit as unit
 from openmm_ramd import openmm_ramd
 import seekr2.modules.common_base as base
+import seekr2.modules.mmvt_base as mmvt_base
 import seekr2.modules.common_sim_openmm as common_sim_openmm
 
 import seekrtools.hidr.hidr_base as hidr_base
@@ -263,12 +264,20 @@ def add_forces(sim_openmm, model, anchor, restraint_force_constant,
         cv_variables = cv.get_variable_values()
         variables_values_list = [1] + cv_variables \
             + [restraint_force_constant, var_value]
+        
+        
+        
         curdir = os.getcwd()
         os.chdir(model.anchor_rootdir)
-        myforce = make_restraining_force(cv, variables_values_list)
+        if isinstance(cv, mmvt_base.MMVT_Voronoi_CV):
+            var_child_cv = int(variable_key.split("_")[2])
+            child_cv = cv.child_cvs[var_child_cv]
+            myforce = make_restraining_force(child_cv, variables_values_list)
+        else:
+            myforce = make_restraining_force(cv, variables_values_list)
         os.chdir(curdir)
         forcenum = sim_openmm.system.addForce(myforce)
-        
+    
     return
 
 def add_barostat(sim_openmm, model):
@@ -445,7 +454,7 @@ def run_SMD_simulation(model, source_anchor_index, destination_anchor_index,
     system, dummy_topology, positions, dummy_box_vectors, \
         dummy_num_frames = common_sim_openmm.create_openmm_system(
             dummy_sim_openmm, model, source_anchor)
-    
+        
     for variable_key in source_anchor.variables:
         var_name = variable_key.split("_")[0]
         var_cv = int(variable_key.split("_")[1])
@@ -457,8 +466,13 @@ def run_SMD_simulation(model, source_anchor_index, destination_anchor_index,
             #  system
             if source_anchor.__class__.__name__ in ["MMVT_toy_anchor"]:
                 start_value = cv.get_cv_value(positions, {})
+            elif isinstance(cv, mmvt_base.MMVT_Voronoi_CV):
+                var_child_cv = int(variable_key.split("_")[2])
+                start_values = cv.get_openmm_context_cv_value(None, positions, system)
+                start_value = start_values[var_child_cv]
             else:
                 start_value = cv.get_openmm_context_cv_value(None, positions, system)
+                
             last_value = destination_anchor.variables[variable_key]
             increment = (last_value - start_value)/NUM_WINDOWS
             windows = np.arange(start_value, last_value+0.0001*increment, 
@@ -705,8 +719,6 @@ def run_RAMD_simulation(model, force_constant, source_anchor_index,
                         var_string = hidr_base.make_var_string(destination_anchor)
                         hidr_output_pdb_name = RAMD_NAME.format(var_string, 0)
                         
-                        print("mark1. hidr_output_pdb_name:", hidr_output_pdb_name)
-                        
                         if model.using_toy():
                             new_positions = np.array([positions.value_in_unit(unit.nanometers)])
                             destination_anchor.starting_positions = new_positions
@@ -716,12 +728,9 @@ def run_RAMD_simulation(model, force_constant, source_anchor_index,
                                 model.anchor_rootdir, destination_anchor.directory,
                                 destination_anchor.building_directory,
                                 hidr_output_pdb_name)
-                            print("mark2. output_pdb_file:", output_pdb_file)
-                            print("mark2. destination_anchor.bulkstate:", destination_anchor.bulkstate)
-                            print("mark2. os.path.exists(output_pdb_file):", os.path.exists(output_pdb_file))
                             
-                            if not destination_anchor.bulkstate \
-                                    and not os.path.exists(output_pdb_file):
+                            if not destination_anchor.bulkstate: # \
+                                #    and not os.path.exists(output_pdb_file):
                                 hidr_base.change_anchor_pdb_filename(
                                     destination_anchor, hidr_output_pdb_name)
                                 parm = parmed.openmm.load_topology(topology, system)
@@ -816,7 +825,7 @@ def run_RAMD_simulation(model, force_constant, source_anchor_index,
                 print("Warning: anchor {} has no starting positions."\
                       .format(i))
         else:
-            if anchor.amber_params.pdb_coordinates_filename == "":
+            if hidr_base.get_anchor_pdb_filename(anchor) == "":
                 print("Warning: anchor {} has no starting PDB structures."\
                       .format(i))
     
