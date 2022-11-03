@@ -30,7 +30,7 @@ import seekr2.modules.common_sim_openmm as common_sim_openmm
 
 import seekrtools.hidr.hidr_base as hidr_base
 
-NUM_WINDOWS=10
+NUM_WINDOWS=100
 NUM_EQUIL_FRAMES=10
 EQUIL_UPDATE_INTERVAL=5000
 SMD_DCD_NAME="smd.dcd"
@@ -259,14 +259,10 @@ def add_forces(sim_openmm, model, anchor, restraint_force_constant,
         else:
             var_value = value_dict[var_cv]
         
-        
         cv = model.collective_variables[var_cv]
         cv_variables = cv.get_variable_values()
         variables_values_list = [1] + cv_variables \
             + [restraint_force_constant, var_value]
-        
-        
-        
         curdir = os.getcwd()
         os.chdir(model.anchor_rootdir)
         if isinstance(cv, mmvt_base.MMVT_Voronoi_CV):

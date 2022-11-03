@@ -261,6 +261,8 @@ def define_new_starting_states(model, voronoi_cv, anchor_cv_values,
             traj[best_index].save_pdb(
                 positions_filename, force_overwrite=True)
             hidr_base.change_anchor_pdb_filename(anchor, STRING_OUTPUT)
+            box_vectors = base.get_box_vectors_from_pdb(positions_filename)
+            hidr_base.change_anchor_box_vectors(anchor, box_vectors)
     
     return
 
