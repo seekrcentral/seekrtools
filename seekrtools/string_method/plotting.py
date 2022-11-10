@@ -27,8 +27,8 @@ class Toy_plot():
         self.title = title
         self.boundaries = boundaries
         self.landscape_resolution = landscape_resolution
-        
         self.function_str = self.refine_function_str(function_str)
+        
         fig, ax = self.plot_energy_landscape()
         self.fig = fig
         self.ax = ax

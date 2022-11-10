@@ -80,14 +80,16 @@ def plot_potential(model, plot_dir, iteration, anchor_values,
                     Z[j,i] = max_Z
         
         p = ax.pcolor(X, Y, Z, cmap=plt.cm.jet, vmin=Z.min(), vmax=Z.max())
-        ax.set_title(title)
-        ax.set_xlabel(x_coordinate_title)
-        ax.set_ylabel(y_coordinate_title)
+        
         cbar = plt.colorbar(p)
         cbar.set_label("Energy (kcal/mol)")
     
     else:
         my_color = "k"
+    
+    ax.set_title(title)
+    ax.set_xlabel(x_coordinate_title)
+    ax.set_ylabel(y_coordinate_title)
     
     # Add trajectory points
     for alpha in trajectory_values:
@@ -104,7 +106,7 @@ def plot_potential(model, plot_dir, iteration, anchor_values,
     # Add iteration label in upper corner
     time_str = "iteration: {}".format(iteration)
     font = {"weight":"bold"}
-    plt.text(min_x+0.1, max_y-0.1, time_str, fontdict=font)
+    plt.text(min_x+0.1, max_y-0.2, time_str, fontdict=font)
     
     #plt.show()
     if not os.path.exists(plot_dir):

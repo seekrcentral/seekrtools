@@ -13,6 +13,7 @@ from collections import defaultdict
 import tempfile
 import ast
 
+import parmed
 import seekr2.modules.common_base as base
 import seekr2.modules.mmvt_sim_openmm as mmvt_sim_openmm
 import seekr2.run as run
@@ -21,6 +22,7 @@ import seekr2.modules.runner_openmm as runner_openmm
 import seekrtools.hidr.hidr_base as hidr_base
 
 MAX_COUNTER = 10000000
+RATCHET_PDB_NAME = "hidr_ratchet.pdb"
 
 def uniform_select_from_list(mylist, count):
     if len(mylist) < count:
@@ -61,7 +63,9 @@ def get_min_state_count(model, anchor):
 def get_state_files_in_anchor_by_adj(model, anchor, alias_index):
     state_glob = get_state_glob_certain_boundary(
         model, anchor, alias_index)
+    print("state_glob:", state_glob)
     state_files_for_adj_anchor = glob.glob(state_glob)
+    print("state_files_for_adj_anchor:", state_files_for_adj_anchor)
     return state_files_for_adj_anchor
 
 def delete_extra_state_files(model, anchor, max_states_per_boundary, 
@@ -118,8 +122,10 @@ def make_states_dict_one_anchor(model, anchor):
     for milestone in anchor.milestones:
         state_files_for_adj_anchor = get_state_files_in_anchor_by_adj(
             model, anchor, milestone.alias_index)
+        print("state_files_for_adj_anchor before extraction:", state_files_for_adj_anchor)
         state_files_for_adj_anchor = extract_states_not_in_anchor(
             model, milestone.neighbor_anchor_index, state_files_for_adj_anchor)
+        print("state_files_for_adj_anchor after extraction:", state_files_for_adj_anchor)
         states_dict[milestone.neighbor_anchor_index] = state_files_for_adj_anchor
     
     return states_dict
@@ -144,6 +150,37 @@ def obtain_required_states(model):
             required_states.add(anchor.index)
         
     return list(required_states)
+
+def save_new_starting_pdb(model, anchor):
+    """
+    
+    """
+    states_dict = make_states_dict_all_anchors(model)
+    # TODO: Does this need to be checked within the Voronoi cell
+    # and do more need to be tried?
+    state_file = states_dict[anchor.index][0]
+    ratchet_output_pdb_name = RATCHET_PDB_NAME
+    full_output_pdb_file = os.path.join(
+                                model.anchor_rootdir, anchor.directory,
+                                anchor.building_directory,
+                                ratchet_output_pdb_name)
+    print("saving file:", state_file, "as PDB:", full_output_pdb_file)
+    dummy_file = tempfile.NamedTemporaryFile()
+    sim_openmm_obj = mmvt_sim_openmm.create_sim_openmm(
+        model, anchor, dummy_file.name,
+        load_state_file=state_file)
+    context = sim_openmm_obj.simulation.context
+    hidr_base.change_anchor_pdb_filename(anchor, full_output_pdb_file)
+    parm = parmed.openmm.load_topology(
+        sim_openmm_obj.simulation.topology, sim_openmm_obj.system)
+    state = context.getState(getPositions=True, enforcePeriodicBox=True)
+    positions = state.getPositions()
+    parm.positions = positions
+    parm.box_vectors = state.getPeriodicBoxVectors()
+    print("saving preliminary PDB file:", 
+          full_output_pdb_file)
+    parm.save(full_output_pdb_file, overwrite=True)
+    exit()
 
 def ratchet(model, cuda_device_index, pdb_files, states_per_anchor, 
             max_states_per_boundary, steps_per_iter, 
@@ -183,15 +220,49 @@ def ratchet(model, cuda_device_index, pdb_files, states_per_anchor,
             assert len(toy_coordinate) == 3
         first_anchor_index = hidr_base.assign_toy_coords_to_model(
             model, toy_coordinates)
-        incomplete_anchors.append(first_anchor_index)
-        first_anchors.append(first_anchor_index)
+        #incomplete_anchors.append(first_anchor_index)
+        #first_anchors.append(first_anchor_index)
     else:
         for pdb_file in pdb_files:
             first_anchor_index = hidr_base.assign_pdb_file_to_model(
                 model, pdb_file)
-            incomplete_anchors.append(first_anchor_index)
-            first_anchors.append(first_anchor_index)
+            #incomplete_anchors.append(first_anchor_index)
+            #first_anchors.append(first_anchor_index)
     
+    # Find all anchors with starting structures
+    missing_starting_structures = []
+    for alpha, anchor in enumerate(model.anchors):
+        if model.using_toy():
+            if anchor.starting_positions is None:
+                has_starting_position = False
+            else:
+                has_starting_position = True
+        else:
+            if (hidr_base.get_anchor_pdb_filename(anchor) is None) \
+                    or (hidr_base.get_anchor_pdb_filename(anchor) == ""):
+                has_starting_position = False
+            else:
+                has_starting_position = True
+        
+        if has_starting_position:
+            first_anchors.append(alpha)
+        else:
+            missing_starting_structures.append(alpha)
+    
+    # Among the starting structure anchors, find which ones have empty
+    #  adjacent anchors
+    for alpha in first_anchors:
+        first_anchor = model.anchors[alpha]
+        completed = True
+        for i, milestone in enumerate(first_anchor.milestones):
+            if milestone.neighbor_anchor_index in missing_starting_structures:
+                incomplete_anchors.append(alpha)
+                completed = False
+                break
+            
+        if completed:
+            complete_anchors.append(alpha)
+            
     counter = 0
     # TODO: need a function to identify states existing before the simulation
     #  and to populate states_dict (or create a different dictionary of any
@@ -268,11 +339,18 @@ def ratchet(model, cuda_device_index, pdb_files, states_per_anchor,
             if this_anchor_completed:
                 assert incomplete_anchor not in complete_anchors
                 complete_anchors.append(incomplete_anchor)
+                # if not a starting anchor, save a new PDB for starting 
+                #  positions
+                if incomplete_anchor not in first_anchors:
+                    save_new_starting_pdb(model, anchor)
+                
             elif (incomplete_anchor not in complete_anchors):
                 next_incomplete_anchors.add(incomplete_anchor)
             delete_extra_state_files(model, anchor, max_states_per_boundary, 
                 states_per_anchor)
             this_anchor_states_dict = make_states_dict_one_anchor(model, anchor)
+            print("this_anchor_states_dict:", this_anchor_states_dict)
+            exit()
             #states_dict.update(this_anchor_states_dict)
             for anchor2 in this_anchor_states_dict:
                 states_dict[anchor2] = this_anchor_states_dict[anchor2]
@@ -305,7 +383,9 @@ def ratchet(model, cuda_device_index, pdb_files, states_per_anchor,
     print("incomplete_anchors:", incomplete_anchors)
     print("both:", complete_anchors+incomplete_anchors)
     print("counter:", counter)
-        
+    
+    hidr_base.save_new_model(model, save_old_model=True)
+    
     return
 
 if __name__ == "__main__":

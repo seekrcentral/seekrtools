@@ -254,23 +254,31 @@ def add_forces(sim_openmm, model, anchor, restraint_force_constant,
             if var_cv not in cv_list:
                 continue
         
-        if window_values is None:
-            var_value = anchor.variables[variable_key]
-        else:
-            var_value = value_dict[var_cv]
-        
         cv = model.collective_variables[var_cv]
         cv_variables = cv.get_variable_values()
-        variables_values_list = [1] + cv_variables \
-            + [restraint_force_constant, var_value]
+        
         curdir = os.getcwd()
         os.chdir(model.anchor_rootdir)
+        
         if isinstance(cv, mmvt_base.MMVT_Voronoi_CV):
             var_child_cv = int(variable_key.split("_")[2])
             child_cv = cv.child_cvs[var_child_cv]
+            if window_values is None:
+                var_value = anchor.variables[variable_key]
+            else:
+                var_value = value_dict[var_child_cv]
+            variables_values_list = [1] + cv_variables \
+            + [restraint_force_constant, var_value]
             myforce = make_restraining_force(child_cv, variables_values_list)
         else:
+            if window_values is None:
+                var_value = anchor.variables[variable_key]
+            else:
+                var_value = value_dict[var_cv]
+            variables_values_list = [1] + cv_variables \
+            + [restraint_force_constant, var_value]
             myforce = make_restraining_force(cv, variables_values_list)
+        
         os.chdir(curdir)
         forcenum = sim_openmm.system.addForce(myforce)
     
@@ -466,15 +474,17 @@ def run_SMD_simulation(model, source_anchor_index, destination_anchor_index,
                 var_child_cv = int(variable_key.split("_")[2])
                 start_values = cv.get_openmm_context_cv_value(None, positions, system)
                 start_value = start_values[var_child_cv]
+                cv_id_list.append(var_child_cv)
             else:
                 start_value = cv.get_openmm_context_cv_value(None, positions, system)
+                cv_id_list.append(var_cv)
                 
             last_value = destination_anchor.variables[variable_key]
             increment = (last_value - start_value)/NUM_WINDOWS
             windows = np.arange(start_value, last_value+0.0001*increment, 
                                 increment)
             windows_list_unzipped.append(windows)
-            cv_id_list.append(var_cv)
+            
         
     var_string = hidr_base.make_var_string(destination_anchor)
     hidr_output_pdb_name = SMD_NAME.format(var_string)

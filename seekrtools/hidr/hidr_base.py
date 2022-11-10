@@ -401,6 +401,8 @@ def assign_toy_coords_to_model(model, toy_coordinates):
     """
     
     """
+    assert model.using_toy(), \
+        "assign_toy_coords_to_model may only be used for a toy system"
     for anchor in model.anchors:
         between_milestones = True
         positions = unit.Quantity(toy_coordinates, unit=unit.nanometers)
