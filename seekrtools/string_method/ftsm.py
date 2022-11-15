@@ -216,6 +216,7 @@ def redefine_anchor_neighbors(model, voronoi_cv, skip_checks=False):
                     milestone_index, voronoi_cv.index, 
                     len(voronoi_cv.child_cvs))
     
+    model.num_milestones = milestone_index
     if not skip_checks:
         check.check_pre_simulation_all(model)
     return

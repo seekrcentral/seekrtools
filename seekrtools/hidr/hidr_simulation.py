@@ -30,7 +30,7 @@ import seekr2.modules.common_sim_openmm as common_sim_openmm
 
 import seekrtools.hidr.hidr_base as hidr_base
 
-NUM_WINDOWS=100
+NUM_WINDOWS=10
 NUM_EQUIL_FRAMES=10
 EQUIL_UPDATE_INTERVAL=5000
 SMD_DCD_NAME="smd.dcd"
