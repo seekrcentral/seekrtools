@@ -101,8 +101,11 @@ def get_cv_values(model, anchor, voronoi_cv, mode="mmvt_traj"):
     values = []
     traj = check.load_structure_with_mdtraj(model, anchor, mode=mode)
     num_frames = traj.n_frames
+    curdir = os.getcwd()
+    os.chdir(model.anchor_rootdir)
     for i in range(num_frames):
         values.append(voronoi_cv.get_mdtraj_cv_value(traj, i))
+    os.chdir(curdir)
     return values
 
 def interpolate_points(model, anchor_cv_values, convergence_factor, smoothing_factor):
