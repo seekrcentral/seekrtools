@@ -458,16 +458,14 @@ def run_SMD_simulation(model, source_anchor_index, destination_anchor_index,
     system, dummy_topology, positions, dummy_box_vectors, \
         dummy_num_frames = common_sim_openmm.create_openmm_system(
             dummy_sim_openmm, model, source_anchor)
-        
+    
+    total_sq_distance = 0.0
     for variable_key in source_anchor.variables:
         var_name = variable_key.split("_")[0]
         var_cv = int(variable_key.split("_")[1])
         cv = model.collective_variables[var_cv]
         # the two anchors must share a common variable
         if variable_key in destination_anchor.variables:
-            #start_value = source_anchor.variables[variable_key]
-            # TODO: the start value should be the current state of the
-            #  system
             if source_anchor.__class__.__name__ in ["MMVT_toy_anchor"]:
                 start_value = cv.get_cv_value(positions, {})
             elif isinstance(cv, mmvt_base.MMVT_Voronoi_CV):
@@ -481,6 +479,7 @@ def run_SMD_simulation(model, source_anchor_index, destination_anchor_index,
                 
             last_value = destination_anchor.variables[variable_key]
             increment = (last_value - start_value)/NUM_WINDOWS
+            total_sq_distance += increment ** 2
             windows = np.arange(start_value, last_value+0.0001*increment, 
                                 increment)
             windows_list_unzipped.append(windows)
@@ -491,7 +490,7 @@ def run_SMD_simulation(model, source_anchor_index, destination_anchor_index,
     windows_list_zipped = zip(*windows_list_unzipped)
     
     timestep = get_timestep(model)
-    distance = increment * unit.nanometers
+    distance = np.sqrt(total_sq_distance) * unit.nanometers
     steps_in_window = int(abs(distance) / (translation_velocity * timestep))
     assert steps_in_window > 0
     

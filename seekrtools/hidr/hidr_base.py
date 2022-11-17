@@ -262,6 +262,7 @@ def save_new_model(model, save_old_model=True):
         The unfilled Seekr2 Model object.
         
     """
+    # TODO: enable different naming for SMD vs. RAMD
     model_path = os.path.join(model.anchor_rootdir, "model.xml")
     if os.path.exists(model_path) and save_old_model:
         # This is expected, because this old model was loaded
