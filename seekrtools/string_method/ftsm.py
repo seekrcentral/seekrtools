@@ -18,12 +18,15 @@ PMID: 19466817.
 # just our own pools.
 
 import os
+import sys
 import glob
 import argparse
 from collections import defaultdict
 from collections.abc import Iterable
 from shutil import copyfile
 import multiprocessing
+import signal
+import traceback
 import ast
 import time
 import re
@@ -343,6 +346,10 @@ def make_process_instructions(model, steps_per_iter, cuda_device_args, states,
     process_task_set = []
     return process_instructions
 
+def signal_handler(signum, frame):
+    print("Abort detected")
+    sys.exit(0)
+
 def run_anchor_in_parallel(process_task):
     model, alpha, state, steps_per_iter, cuda_device_index = process_task
     run.run(model, str(alpha), save_state_file=False,
@@ -355,7 +362,7 @@ def run_anchor_in_parallel(process_task):
 def ftsm(model, cuda_device_args=None, iterations=100, points_per_iter=100, 
          steps_per_iter=10000, stationary_states="", convergence_factor=0.2, 
          smoothing_factor=0.0, swarm_size=1):
-    
+    #signal.signal(signal.SIGHUP, signal_handler)
     assert isinstance(model.collective_variables[0], mmvt_base.MMVT_Voronoi_CV)
     assert len(model.collective_variables) == 1
     assert steps_per_iter % points_per_iter == 0, \
@@ -392,6 +399,9 @@ def ftsm(model, cuda_device_args=None, iterations=100, points_per_iter=100,
             num_processes = len(process_task_set)
             with multiprocessing.get_context("spawn").Pool(num_processes) as p:
                 p.map(run_anchor_in_parallel, process_task_set)
+            
+            # Serial run
+            #run_anchor_in_parallel(process_task_set[0])
             
         """
         for alpha, anchor in enumerate(model.anchors):
