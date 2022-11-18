@@ -503,7 +503,7 @@ def run_SMD_simulation(model, source_anchor_index, destination_anchor_index,
     
     total_time = time.time() - start_time
     simulation_in_ns = steps_in_window * len(list(windows_list_zipped)) \
-        * timestep.value_in_unit(unit.picosecond) * 1e-3
+        * timestep.value_in_unit(unit.nanoseconds)
     total_time_in_days = total_time / 86400.0
     ns_per_day = simulation_in_ns / total_time_in_days
     print("Benchmark:", ns_per_day, "ns/day")
@@ -813,7 +813,7 @@ def run_RAMD_simulation(model, force_constant, source_anchor_index,
         counter += steps_per_RAMD_update
     
     total_time = time.time() - start_time
-    simulation_in_ns = counter * time_step * 1e-3
+    simulation_in_ns = counter * time_step.value_in_unit(unit.nanosecond)
     total_time_in_days = total_time / (86400.0)
     ns_per_day = simulation_in_ns / total_time_in_days
     
