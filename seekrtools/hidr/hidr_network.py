@@ -67,6 +67,7 @@ def find_next_anchor_index(model, visited_anchor_dict):
         The total distance from one of the starting nodes (anchors) to
         the destination of this step.
     """
+    FACTOR = 0.1
     prev_anchor_index = None
     next_anchor_index = None
     next_anchor_distance = 9e9
@@ -79,7 +80,8 @@ def find_next_anchor_index(model, visited_anchor_dict):
                 edge_distance = find_edge_distance(model, visited_anchor_index, 
                                                neighbor_index)
                 total_distance = visited_anchor_dict[visited_anchor_index] \
-                    + edge_distance
+                    * FACTOR + edge_distance
+                #total_distance = edge_distance
                 if total_distance < next_anchor_distance:
                     next_anchor_distance = total_distance
                     prev_anchor_index = visited_anchor_index
@@ -116,7 +118,7 @@ def get_procedure(model, source_anchor_indices, destination_list):
     tmp_destination_list = destination_list[:]
     for source_anchor_index in source_anchor_indices:
         visited_anchor_dict[source_anchor_index] = 0.0
-    
+        
     for i in range(len(model.anchors)):
         prev_anchor_index, next_anchor_index, next_anchor_distance \
             = find_next_anchor_index(model, visited_anchor_dict)

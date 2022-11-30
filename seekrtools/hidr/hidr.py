@@ -192,7 +192,7 @@ def hidr(model, destination, pdb_files=[], toy_coordinates=None, dry_run=False,
             
             print("Performance:", ns_per_day, "ns per day")
     
-        hidr_base.save_new_model(model)
+    hidr_base.save_new_model(model)
         
     # Run the recipe of SMD instructions
     for step in procedure:
@@ -232,7 +232,7 @@ def hidr(model, destination, pdb_files=[], toy_coordinates=None, dry_run=False,
                 RAMD_cutoff_distance_nanometers=RAMD_cutoff_distance)
             # save the new model file and check the generated structures
             print("Benchmark:", ns_per_day, "ns/day")
-            hidr_base.save_new_model(model, save_old_model=True)
+            hidr_base.save_new_model(model, save_old_model=False)
             
         else:
             print("mode not allowed: {}".format(mode))

@@ -25,7 +25,15 @@ except ModuleNotFoundError:
     import simtk.unit as unit
 from openmm_ramd import openmm_ramd
 import seekr2.modules.common_base as base
-import seekr2.modules.mmvt_base as mmvt_base
+import seekr2.modules.mmvt_cvs.mmvt_cv_base as mmvt_cv_base
+import seekr2.modules.mmvt_cvs.mmvt_spherical_cv as mmvt_spherical_cv
+import seekr2.modules.mmvt_cvs.mmvt_tiwary_cv as mmvt_tiwary_cv
+import seekr2.modules.mmvt_cvs.mmvt_planar_cv as mmvt_planar_cv
+import seekr2.modules.mmvt_cvs.mmvt_rmsd_cv as mmvt_rmsd_cv
+import seekr2.modules.mmvt_cvs.mmvt_closest_pair_cv as mmvt_closest_pair_cv
+import seekr2.modules.mmvt_cvs.mmvt_count_contacts_cv as mmvt_count_contacts_cv
+import seekr2.modules.mmvt_cvs.mmvt_external_cv as mmvt_external_cv
+import seekr2.modules.mmvt_cvs.mmvt_voronoi_cv as mmvt_voronoi_cv
 import seekr2.modules.common_sim_openmm as common_sim_openmm
 
 import seekrtools.hidr.hidr_base as hidr_base
@@ -202,7 +210,7 @@ def make_restraining_force(cv, variables_values_list):
     ----------
     cv : Collective_variable()
         A Collective_variable object which contains all the information
-        for the collective variable describine this variable. In fact,
+        for the collective variable describing this variable. In fact,
         the boundaries are contours of the function described by cv.
         This variable contains information like the groups of atoms
         involved with the CV, and the expression which describes the
@@ -224,6 +232,14 @@ def make_restraining_force(cv, variables_values_list):
     variables_names_list = cv.add_parameters(myforce)
     cv.add_groups_and_variables(myforce, variables_values_list, alias_index)
     return myforce
+
+def update_restraining_force(cv, variables_values_list, force, context):
+    """
+    Update the restraining force variables in a CV.
+    """
+    alias_index = 1 # TODO: wrong??
+    cv.update_groups_and_variables(force, variables_values_list, alias_index, context)
+    return
 
 def add_forces(sim_openmm, model, anchor, restraint_force_constant, 
                cv_list=None, window_values=None):
@@ -247,6 +263,7 @@ def add_forces(sim_openmm, model, anchor, restraint_force_constant,
         for cv_index, value in zip(cv_list, window_values):
             value_dict[cv_index] = value
     
+    forces = []
     for variable_key in anchor.variables:
         var_name = variable_key.split("_")[0]
         var_cv = int(variable_key.split("_")[1])
@@ -260,7 +277,7 @@ def add_forces(sim_openmm, model, anchor, restraint_force_constant,
         curdir = os.getcwd()
         os.chdir(model.anchor_rootdir)
         
-        if isinstance(cv, mmvt_base.MMVT_Voronoi_CV):
+        if isinstance(cv, mmvt_voronoi_cv.MMVT_Voronoi_CV):
             var_child_cv = int(variable_key.split("_")[2])
             child_cv = cv.child_cvs[var_child_cv]
             if window_values is None:
@@ -281,7 +298,68 @@ def add_forces(sim_openmm, model, anchor, restraint_force_constant,
         
         os.chdir(curdir)
         forcenum = sim_openmm.system.addForce(myforce)
+        forces.append(myforce)
     
+    return forces
+
+def update_forces(sim_openmm, forces, model, anchor, restraint_force_constant, 
+               cv_list=None, window_values=None):
+    """
+    Update the forces for this restrained simulation.
+    
+    Parameters:
+    -----------
+    sim_openmm : HIDR_sim_openmm()
+        The HIDR_sim_openmm object which contains all simulation
+        settings and information needed.
+    model : Model()
+        The model object containing the relevant anchors.
+    anchor : Anchor()
+        The anchor object to generate forces for.
+    restrain_force_constant : float
+        The restraint force constant (in units of kcal/mol*nm**2.
+    """
+    value_dict = {}
+    if cv_list is not None and window_values is not None:
+        for cv_index, value in zip(cv_list, window_values):
+            value_dict[cv_index] = value
+    
+    for force, variable_key in zip(forces, anchor.variables):
+        var_name = variable_key.split("_")[0]
+        var_cv = int(variable_key.split("_")[1])
+        if cv_list is not None:
+            if var_cv not in cv_list:
+                continue
+        
+        cv = model.collective_variables[var_cv]
+        cv_variables = cv.get_variable_values()
+        
+        curdir = os.getcwd()
+        os.chdir(model.anchor_rootdir)
+        
+        if isinstance(cv, mmvt_voronoi_cv.MMVT_Voronoi_CV):
+            var_child_cv = int(variable_key.split("_")[2])
+            child_cv = cv.child_cvs[var_child_cv]
+            if window_values is None:
+                var_value = anchor.variables[variable_key]
+            else:
+                var_value = value_dict[var_child_cv]
+            variables_values_list = [1] + cv_variables \
+            + [restraint_force_constant, var_value]
+            update_restraining_force(child_cv, variables_values_list, force,
+                                     sim_openmm.simulation.context)
+        else:
+            if window_values is None:
+                var_value = anchor.variables[variable_key]
+            else:
+                var_value = value_dict[var_cv]
+            variables_values_list = [1] + cv_variables \
+            + [restraint_force_constant, var_value]
+            update_restraining_force(cv, variables_values_list, force,
+                                     sim_openmm.simulation.context)
+        
+        os.chdir(curdir)
+        
     return
 
 def add_barostat(sim_openmm, model):
@@ -376,24 +454,29 @@ def run_min_equil_anchor(model, anchor_index, equilibration_steps,
     
     return ns_per_day
 
-def run_window(model, anchor, restraint_force_constant, cv_list, window_values,
-               steps_in_window, smd_dcd_filename, smd_dcd_interval):
+def run_window(model, anchor, sim_openmm, restraint_force_constant, cv_list, 
+               window_values, steps_in_window, smd_dcd_filename, 
+               smd_dcd_interval):
     """
     Run the window of an SMD simulation, where the restraint equilibrium
     value has been moved incrementally to a new position for a short
     time to draw the system towards a new anchor.
     """
-    energy_reporter_interval = None
+    # TODO: make one sim_openmm object for all windows, but update
+    #  parameters in context
     total_number_of_steps = steps_in_window
+    if anchor.__class__.__name__ in ["MMVT_toy_anchor"]:
+        enforcePeriodicBox = False
+    else:
+        enforcePeriodicBox = True
+    """
+    energy_reporter_interval = None
     
     sim_openmm = HIDR_sim_openmm()
     system, topology, positions, box_vectors, num_frames \
         = common_sim_openmm.create_openmm_system(sim_openmm, model, 
                                                  anchor)
-    if anchor.__class__.__name__ in ["MMVT_toy_anchor"]:
-        enforcePeriodicBox = False
-    else:
-        enforcePeriodicBox = True
+    
         
     sim_openmm.system = system
     time_step = add_integrator(sim_openmm, model)
@@ -407,13 +490,14 @@ def run_window(model, anchor, restraint_force_constant, cv_list, window_values,
         energy_reporter_interval=energy_reporter_interval, 
         smd_dcd_filename=smd_dcd_filename,
         smd_dcd_interval=smd_dcd_interval)
+    """
     sim_openmm.simulation.step(total_number_of_steps)
     state = sim_openmm.simulation.context.getState(
-        getPositions=True, getVelocities=False, 
+        getPositions=False, getVelocities=False, 
         enforcePeriodicBox=enforcePeriodicBox)
-    positions = state.getPositions()
+    #positions = state.getPositions()
     box_vectors = state.getPeriodicBoxVectors()
-    return system, topology, positions, box_vectors
+    return box_vectors
     
 def run_SMD_simulation(model, source_anchor_index, destination_anchor_index, 
                          restraint_force_constant, translation_velocity,
@@ -468,7 +552,7 @@ def run_SMD_simulation(model, source_anchor_index, destination_anchor_index,
         if variable_key in destination_anchor.variables:
             if source_anchor.__class__.__name__ in ["MMVT_toy_anchor"]:
                 start_value = cv.get_cv_value(positions, {})
-            elif isinstance(cv, mmvt_base.MMVT_Voronoi_CV):
+            elif isinstance(cv, mmvt_voronoi_cv.MMVT_Voronoi_CV):
                 var_child_cv = int(variable_key.split("_")[2])
                 start_values = cv.get_openmm_context_cv_value(None, positions, system)
                 start_value = start_values[var_child_cv]
@@ -487,7 +571,8 @@ def run_SMD_simulation(model, source_anchor_index, destination_anchor_index,
         
     var_string = hidr_base.make_var_string(destination_anchor)
     hidr_output_pdb_name = SMD_NAME.format(var_string)
-    windows_list_zipped = zip(*windows_list_unzipped)
+    windows_list_zipped = list(zip(*windows_list_unzipped))
+    
     
     timestep = get_timestep(model)
     distance = np.sqrt(total_sq_distance) * unit.nanometers
@@ -495,15 +580,39 @@ def run_SMD_simulation(model, source_anchor_index, destination_anchor_index,
     assert steps_in_window > 0
     
     start_time = time.time()
-    for i, window_values in enumerate(windows_list_zipped):
+    
+    # Make the system and simulation
+    energy_reporter_interval = None
+    sim_openmm = HIDR_sim_openmm()
+    system, topology, positions, box_vectors, num_frames \
+        = common_sim_openmm.create_openmm_system(sim_openmm, model, 
+                                                 source_anchor)
+    sim_openmm.system = system
+    time_step = add_integrator(sim_openmm, model)
+    common_sim_openmm.add_platform(sim_openmm, model)
+    forces = add_forces(
+        sim_openmm, model, source_anchor, restraint_force_constant, 
+        cv_id_list, windows_list_zipped[0])
+    add_simulation(sim_openmm, model, topology, positions, box_vectors, 
+                   skip_minimization=True)
+    handle_reporters(
+        model, source_anchor, sim_openmm, trajectory_reporter_interval=None, 
+        energy_reporter_interval=energy_reporter_interval, 
+        smd_dcd_filename=smd_dcd_filename,
+        smd_dcd_interval=smd_dcd_interval)
+    for window_values in windows_list_zipped:
         print("running_window:", window_values, "steps_in_window:", steps_in_window)
-        system, topology, positions, box_vectors = run_window(
-            model, source_anchor, restraint_force_constant, cv_id_list, 
+        update_forces(
+            sim_openmm, forces, model, source_anchor, restraint_force_constant, 
+            cv_list=cv_id_list, window_values=window_values)
+        sim_openmm.simulation.context.reinitialize(preserveState=True)
+        box_vectors = run_window(
+            model, source_anchor, sim_openmm, restraint_force_constant, cv_id_list, 
             window_values, steps_in_window, smd_dcd_filename, smd_dcd_interval)
     
     total_time = time.time() - start_time
     simulation_in_ns = steps_in_window * len(list(windows_list_zipped)) \
-        * timestep.value_in_unit(unit.nanoseconds)
+        * timestep.value_in_unit(unit.picoseconds) * 1e-3
     total_time_in_days = total_time / 86400.0
     ns_per_day = simulation_in_ns / total_time_in_days
     print("Benchmark:", ns_per_day, "ns/day")
@@ -813,7 +922,7 @@ def run_RAMD_simulation(model, force_constant, source_anchor_index,
         counter += steps_per_RAMD_update
     
     total_time = time.time() - start_time
-    simulation_in_ns = counter * time_step.value_in_unit(unit.nanosecond)
+    simulation_in_ns = counter * time_step.value_in_unit(unit.picosecond)  * 1e-3
     total_time_in_days = total_time / (86400.0)
     ns_per_day = simulation_in_ns / total_time_in_days
     
