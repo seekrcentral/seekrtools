@@ -618,6 +618,8 @@ def run_SMD_simulation(model, source_anchor_index, destination_anchor_index,
     print("Benchmark:", ns_per_day, "ns/day")
     
     # assign the new model attributes, and copy over the building files
+    state = sim_openmm.simulation.context.getState(getPositions=True)
+    positions = state.getPositions()
     
     if source_anchor.__class__.__name__ in ["MMVT_toy_anchor"]:
         # Get current position
@@ -758,7 +760,7 @@ def run_RAMD_simulation(model, force_constant, source_anchor_index,
         simulation.RAMD_step(steps_per_RAMD_update)
         #old_com = new_com
         #simulation.step(steps_per_RAMD_update)
-        state = simulation.context.getState(getPositions = True)
+        state = simulation.context.getState(getPositions=True)
         positions = state.getPositions()
         if old_positions is None:
             old_positions = positions
