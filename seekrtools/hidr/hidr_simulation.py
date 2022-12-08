@@ -80,6 +80,7 @@ class HIDR_sim_openmm(common_sim_openmm.Common_sim_openmm):
         self.simulation = None
         self.traj_reporter = openmm_app.PDBReporter
         self.energy_reporter = openmm_app.StateDataReporter
+        self.forces = None
         return
 
 def get_timestep(model):
@@ -262,7 +263,7 @@ def add_forces(sim_openmm, model, anchor, restraint_force_constant,
     if cv_list is not None and window_values is not None:
         for cv_index, value in zip(cv_list, window_values):
             value_dict[cv_index] = value
-    
+        
     forces = []
     for variable_key in anchor.variables:
         var_name = variable_key.split("_")[0]
@@ -300,6 +301,7 @@ def add_forces(sim_openmm, model, anchor, restraint_force_constant,
         forcenum = sim_openmm.system.addForce(myforce)
         forces.append(myforce)
     
+    sim_openmm.forces = forces
     return forces
 
 def update_forces(sim_openmm, forces, model, anchor, restraint_force_constant, 
@@ -367,9 +369,18 @@ def add_barostat(sim_openmm, model):
     Optionally add a barostat to the simulation to maintain constant
     pressure.
     """
-    barostat = openmm.MonteCarloBarostat(
-        1.0*unit.bar,
-        model.openmm_settings.langevin_integrator.target_temperature, 25)
+    if model.openmm_settings.barostat.membrane:
+        barostat = openmm.MonteCarloMembraneBarostat(
+                1.0*unit.bar, 
+                0.0*unit.bar*unit.nanometers, 
+                model.openmm_settings.langevin_integrator.target_temperature, 
+                openmm.MonteCarloMembraneBarostat.XYIsotropic, 
+                openmm.MonteCarloMembraneBarostat.ZFixed)
+    else:
+        barostat = openmm.MonteCarloBarostat(
+            1.0*unit.bar,
+            model.openmm_settings.langevin_integrator.target_temperature, 25)
+    
     sim_openmm.system.addForce(barostat)
 
 def run_min_equil_anchor(model, anchor_index, equilibration_steps, 
@@ -469,28 +480,6 @@ def run_window(model, anchor, sim_openmm, restraint_force_constant, cv_list,
         enforcePeriodicBox = False
     else:
         enforcePeriodicBox = True
-    """
-    energy_reporter_interval = None
-    
-    sim_openmm = HIDR_sim_openmm()
-    system, topology, positions, box_vectors, num_frames \
-        = common_sim_openmm.create_openmm_system(sim_openmm, model, 
-                                                 anchor)
-    
-        
-    sim_openmm.system = system
-    time_step = add_integrator(sim_openmm, model)
-    common_sim_openmm.add_platform(sim_openmm, model)
-    add_forces(sim_openmm, model, anchor, restraint_force_constant, cv_list,
-               window_values)
-    add_simulation(sim_openmm, model, topology, positions, box_vectors, 
-                   skip_minimization=True)
-    handle_reporters(
-        model, anchor, sim_openmm, trajectory_reporter_interval=None, 
-        energy_reporter_interval=energy_reporter_interval, 
-        smd_dcd_filename=smd_dcd_filename,
-        smd_dcd_interval=smd_dcd_interval)
-    """
     sim_openmm.simulation.step(total_number_of_steps)
     state = sim_openmm.simulation.context.getState(
         getPositions=False, getVelocities=False, 

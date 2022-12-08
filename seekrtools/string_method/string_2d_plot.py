@@ -14,7 +14,7 @@ import matplotlib.pyplot as plt
 
 import seekr2.modules.common_base as base
 
-from seekrtools.string_method.ftsm import STRING_LOG_GLOB
+from seekrtools.string_method.base import STRING_LOG_GLOB
 
 PLOTS_DIRECTORY_NAME = "string_method_plots"
 
