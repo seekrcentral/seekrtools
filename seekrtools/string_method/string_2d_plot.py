@@ -96,8 +96,9 @@ def plot_potential(model, plot_dir, iteration, anchor_values,
         if model.anchors[alpha].bulkstate:
             continue
         for point in trajectory_values[alpha]:
-            circle = plt.Circle(point, 0.005, color=my_color, zorder=2.5, alpha=0.5)
-            ax.add_patch(circle)
+            pass
+            #circle = plt.Circle(point, 0.005, color=my_color, zorder=2.5, alpha=0.5)
+            #ax.add_patch(circle)
             
     # Add lines to make string
     points_array = np.array(points).T

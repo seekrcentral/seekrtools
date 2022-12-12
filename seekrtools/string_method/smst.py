@@ -209,6 +209,7 @@ def run_anchor_in_parallel(process_task):
         getPositions=True, getVelocities=False, 
         enforcePeriodicBox=enforcePeriodicBox)
     reset_positions = state.getPositions()
+    reset_box_vectors = state.getPeriodicBoxVectors(asNumpy=True)
     swarm_positions_list = []
     box_vectors_list = []
     print("creating a swarm of", swarm_size, "for image:", alpha)
@@ -237,7 +238,8 @@ def run_anchor_in_parallel(process_task):
             None, avg_positions, sim_openmm.system)
         avg_box_vectors = np.mean(box_vectors_list, axis=0) * unit.nanometers
         set_anchor_cv_values(anchor, avg_values)
-        save_avg_pdb_structure(model, anchor, sim_openmm, avg_positions, avg_box_vectors)
+        #save_avg_pdb_structure(model, anchor, sim_openmm, avg_positions, avg_box_vectors)
+        save_avg_pdb_structure(model, anchor, sim_openmm, reset_positions, reset_box_vectors)
     time_step = hidr_simulation.get_timestep(model)
     total_time = time.time() - start_time
     total_steps = equilibration_steps + swarm_size * steps_per_iter
