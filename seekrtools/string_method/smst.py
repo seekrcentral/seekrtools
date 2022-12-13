@@ -174,6 +174,9 @@ def run_anchor_in_parallel(process_task):
         skip_minimization, equilibration_steps, restraint_force_constant, \
         = process_task
     
+    curdir = os.getcwd()
+    os.chdir(model.anchor_rootdir)
+    
     voronoi_cv = model.collective_variables[0]
     anchor = model.anchors[alpha]
     
@@ -248,7 +251,7 @@ def run_anchor_in_parallel(process_task):
     total_time_in_days = total_time / (86400.0)
     ns_per_day = simulation_in_ns / total_time_in_days
     print("Benchmark:", ns_per_day, "ns/day")
-    
+    os.chdir(curdir)
     return
 
 def smst(model, cuda_device_args=None, iterations=100, swarm_size=10, 
