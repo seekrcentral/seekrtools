@@ -23,7 +23,12 @@ try:
     import openmm.unit as unit
 except ModuleNotFoundError:
     import simtk.unit as unit
-from openmm_ramd import openmm_ramd
+
+try:
+    from openmm_ramd import openmm_ramd
+except ModuleNotFoundError:
+    print("openmm_ramd module not found. You will be unable to run RAMD.")
+
 import seekr2.modules.common_base as base
 import seekr2.modules.mmvt_cvs.mmvt_cv_base as mmvt_cv_base
 import seekr2.modules.mmvt_cvs.mmvt_spherical_cv as mmvt_spherical_cv
