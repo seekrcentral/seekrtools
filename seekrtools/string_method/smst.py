@@ -98,7 +98,8 @@ def make_simulation_set(model, stationary_alphas, restraint_force_constant,
 
 def make_process_instructions(
         model, swarm_size, steps_per_iter, cuda_device_args, stationary_alphas,
-        skip_minimization, skip_equilibration, restraint_force_constant):
+        use_centroid, skip_minimization, skip_equilibration, 
+        restraint_force_constant):
     process_instructions = []
     if not isinstance(cuda_device_args, Iterable):
         cuda_device_args = [cuda_device_args]
@@ -120,7 +121,7 @@ def make_process_instructions(
             cuda_device_index = str(cuda_device_args[idx])
             
         process_task = [model, alpha, swarm_size, steps_per_iter, 
-                        cuda_device_index, skip_minimization, 
+                        cuda_device_index, use_centroid, skip_minimization, 
                         skip_equilibration, restraint_force_constant]
         process_task_set.append(process_task)
         counter += 1
@@ -132,7 +133,7 @@ def make_process_instructions(
 def save_avg_pdb_structure(model, anchor, sim_openmm, positions, box_vectors):
     
     if anchor.__class__.__name__ in ["MMVT_toy_anchor"]:
-        anchor.starting_positions = positions
+        anchor.starting_positions = np.array(positions)
         
     else:
         var_string = hidr_base.make_var_string(anchor)
@@ -147,6 +148,17 @@ def save_avg_pdb_structure(model, anchor, sim_openmm, positions, box_vectors):
         parm.positions = positions
         parm.box_vectors = box_vectors
         parm.save(output_pdb_file, overwrite=True)
+
+def save_positions_dcd(model, anchor, positions_list, box_vector_list):
+    
+    traj = check.load_structure_with_mdtraj(model, anchor, mode="pdb")
+    traj.xyz = positions_list
+    traj.unitcell_vectors = np.array(box_vector_list)
+    swarm_dcd_filename = os.path.join(
+        model.anchor_rootdir, anchor.directory, anchor.production_directory,
+        "mmvt1.dcd")
+    traj.save(swarm_dcd_filename)
+    return
 
 def set_anchor_cv_values(anchor, cv_values, as_positions=False):
     num_variables = len(anchor.variables)
@@ -171,8 +183,8 @@ def get_anchor_cv_values(anchor):
 
 def run_anchor_in_parallel(process_task):
     model, alpha, swarm_size, steps_per_iter, cuda_device_index, \
-        skip_minimization, equilibration_steps, restraint_force_constant, \
-        = process_task
+        use_centroid, skip_minimization, equilibration_steps, \
+        restraint_force_constant = process_task
     
     curdir = os.getcwd()
     os.chdir(model.anchor_rootdir)
@@ -231,6 +243,10 @@ def run_anchor_in_parallel(process_task):
         box_vectors = state.getPeriodicBoxVectors(asNumpy=True)
         box_vectors_list.append(box_vectors)
         
+    if use_centroid:
+        save_positions_dcd(model, anchor, swarm_positions_list, 
+                           box_vectors_list)
+    
     avg_positions = np.mean(swarm_positions_list, axis=0) * unit.nanometers
     sim_openmm.simulation.context.setPositions(avg_positions)
     # Write the averaged PDB and assign the new CV values to the model
@@ -271,8 +287,8 @@ def smst(model, cuda_device_args=None, iterations=100, swarm_size=10,
         print("Iteration:", iteration)
         process_instructions = make_process_instructions(
             model, swarm_size, steps_per_iter, cuda_device_args, 
-            stationary_alphas, skip_minimization, equilibration_steps, 
-            restraint_force_constant)
+            stationary_alphas, use_centroid, skip_minimization, 
+            equilibration_steps, restraint_force_constant)
         for process_task_set in process_instructions:
             # loop through the serial list of parallel tasks
             num_processes = len(process_task_set)
@@ -295,9 +311,13 @@ def smst(model, cuda_device_args=None, iterations=100, swarm_size=10,
             set_anchor_cv_values(anchor, ideal_points[alpha])
             anchor_cv_values[alpha] = [ideal_points[alpha]]
         string_base.log_string_results(model, iteration, anchor_cv_values, log_filename)
+        if use_centroid:
+            string_base.define_new_starting_states(
+                model, voronoi_cv, anchor_cv_values, ideal_points, 
+                stationary_alphas)
         string_base.redefine_anchor_neighbors(model, voronoi_cv, skip_checks=True)
         string_base.save_new_model(model, save_old_model=False, overwrite_log=False)
-        assert check.check_systems_within_Voronoi_cells(model)
+        #assert check.check_systems_within_Voronoi_cells(model)
         
     return
             
@@ -340,11 +360,12 @@ if __name__ == "__main__":
         type=float, help="The degree to smoothen the curve describing the "\
         "string going through each anchor. Default: 0.0")
     #NOTE: Benoit Roux uses a smoothing constant of 0.1 !!!
-    #argparser.add_argument(
-    #    "-C", "--use_centroid", dest="use_centroid", default=False,
-    #    help="Whether to assign the displacement to the centroid "\
-    #    "of the sampled swarm. If left at False, then the average of the "\
-    #    "swarm is used by default.", action="store_true")
+    argparser.add_argument(
+        "-C", "--use_centroid", dest="use_centroid", default=False,
+        help="Whether to assign the displacement to the centroid "\
+        "of the sampled swarm. If left at False, then the average of the "\
+        "swarm is used by default as the CV point, and the previous iter's "\
+        "structure is used as a starting point.", action="store_true")
     argparser.add_argument(
         "-m", "--skip_minimization", dest="skip_minimization", default=False,
         help="Whether to skip minimization when the starting "\
@@ -372,8 +393,7 @@ if __name__ == "__main__":
     steps_per_iter = args["steps_per_iter"]
     stationary_states = args["stationary_states"]
     smoothing_factor = args["smoothing_factor"]
-    #use_centroid = args["use_centroid"]
-    use_centroid = False
+    use_centroid = args["use_centroid"]
     skip_minimization = args["skip_minimization"]
     equilibration_steps = args["equilibration_steps"]
     restraint_force_constant = args["restraint_force_constant"]
