@@ -208,6 +208,8 @@ def run_anchor_in_parallel(process_task):
             restraint_force_constant, cv_list=cv_id_list, 
             window_values=value_list)
         sim_openmm.simulation.context.reinitialize(preserveState=True)
+        sim_openmm.simulation.context.setVelocitiesToTemperature(
+            model.openmm_settings.initial_temperature * unit.kelvin)
         sim_openmm.simulation.step(equilibration_steps)
         # Now turn off the forces for the swarms
         hidr_simulation.update_forces(
