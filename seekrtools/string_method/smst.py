@@ -192,11 +192,20 @@ def run_anchor_in_parallel(process_task):
     voronoi_cv = model.collective_variables[0]
     anchor = model.anchors[alpha]
     
+    if anchor.__class__.__name__ in ["MMVT_toy_anchor"]:
+        enforcePeriodicBox = False
+    else:
+        enforcePeriodicBox = True
+    
     start_time = time.time()
     sim_openmm = make_single_simulation(
         model, anchor, restraint_force_constant, skip_minimization, 
         equilibration_steps, cuda_device_index)
     
+    state = sim_openmm.simulation.context.getState(
+        getPositions=True, getVelocities=False, 
+        enforcePeriodicBox=enforcePeriodicBox)
+    start_positions = state.getPositions()
     if not skip_minimization:
         sim_openmm.simulation.minimizeEnergy()
     
@@ -218,10 +227,6 @@ def run_anchor_in_parallel(process_task):
         sim_openmm.simulation.context.reinitialize(preserveState=True)
     
     # Now run swarms
-    if anchor.__class__.__name__ in ["MMVT_toy_anchor"]:
-        enforcePeriodicBox = False
-    else:
-        enforcePeriodicBox = True
     state = sim_openmm.simulation.context.getState(
         getPositions=True, getVelocities=False, 
         enforcePeriodicBox=enforcePeriodicBox)
@@ -294,11 +299,11 @@ def smst(model, cuda_device_args=None, iterations=100, swarm_size=10,
         for process_task_set in process_instructions:
             # loop through the serial list of parallel tasks
             num_processes = len(process_task_set)
-            with multiprocessing.get_context("spawn").Pool(num_processes) as p:
-                p.map(run_anchor_in_parallel, process_task_set)
+            #with multiprocessing.get_context("spawn").Pool(num_processes) as p:
+            #    p.map(run_anchor_in_parallel, process_task_set)
             
             # Serial run - to start with
-            #run_anchor_in_parallel(process_task_set[0])
+            run_anchor_in_parallel(process_task_set[0])
         
         for alpha, anchor in enumerate(model.anchors):
             if alpha in stationary_alphas or anchor.bulkstate:
