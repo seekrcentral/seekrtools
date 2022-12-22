@@ -549,14 +549,17 @@ def run_SMD_simulation(model, source_anchor_index, destination_anchor_index,
         # the two anchors must share a common variable
         if variable_key in destination_anchor.variables:
             if source_anchor.__class__.__name__ in ["MMVT_toy_anchor"]:
-                start_value = cv.get_cv_value(positions)
-            elif isinstance(cv, mmvt_voronoi_cv.MMVT_Voronoi_CV):
-                var_child_cv = int(variable_key.split("_")[2])
+                start_values = cv.get_cv_value(positions)
+            else:
                 start_values = cv.get_openmm_context_cv_value(None, positions, system)
+            
+            if isinstance(cv, mmvt_voronoi_cv.MMVT_Voronoi_CV):
+                var_child_cv = int(variable_key.split("_")[2])
                 start_value = start_values[var_child_cv]
                 cv_id_list.append(var_child_cv)
             else:
-                start_value = cv.get_openmm_context_cv_value(None, positions, system)
+                #start_value = cv.get_openmm_context_cv_value(None, positions, system)
+                start_value = start_values
                 cv_id_list.append(var_cv)
                 
             last_value = destination_anchor.variables[variable_key]

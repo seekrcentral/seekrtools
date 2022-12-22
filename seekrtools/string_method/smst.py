@@ -76,7 +76,7 @@ def make_single_simulation(model, anchor, restraint_force_constant,
     
     hidr_simulation.add_simulation(
         sim_openmm, model, topology, positions, box_vectors, 
-        skip_minimization=skip_minimization)
+        skip_minimization=True)
     return sim_openmm
 
 def make_simulation_set(model, stationary_alphas, restraint_force_constant, 
@@ -197,12 +197,11 @@ def load_string_positions(model, alpha):
         positions = pdb_structure.coordinates
         box_vectors_tuple = pdb_structure.box_vectors.value_in_unit(unit.nanometers)
         box_vectors = np.array(box_vectors_tuple) * unit.nanometers
-        
     
     return positions, box_vectors
 
 def interpolate_positions(model, anchor_cv_values, stationary_alphas):
-    
+    voronoi_cv = model.collective_variables[0]
     total_distance = 0.0
     current_ideal_index = 1
     assert len(model.anchors) >= 2
@@ -246,6 +245,10 @@ def interpolate_positions(model, anchor_cv_values, stationary_alphas):
         start_box_vectors = box_vectors_list[alpha]
         start_positions = positions_list[alpha]
         end_positions = positions_list[alpha+1]
+        start_cv_val = voronoi_cv.get_openmm_context_cv_value(
+            None, start_positions * unit.angstroms, sim_openmm.system)
+        end_cv_val = voronoi_cv.get_openmm_context_cv_value(
+            None, end_positions * unit.angstroms, sim_openmm.system)
         start_box_vectors = box_vectors_list[alpha]
         end_box_vectors = box_vectors_list[alpha+1]
         segment_distance = np.linalg.norm(end_point-start_point)
@@ -260,13 +263,16 @@ def interpolate_positions(model, anchor_cv_values, stationary_alphas):
                                   + progress_between_points * end_point
             interp_positions = (1.0-progress_between_points) * start_positions \
                                   + progress_between_points * end_positions
+            interp_positions = interp_positions * unit.angstroms
+            interp_cv_val = voronoi_cv.get_openmm_context_cv_value(
+                None, interp_positions, sim_openmm.system)
             if start_box_vectors is not None and end_box_vectors is not None:
                 interp_box_vecs = progress_between_points * start_box_vectors \
                            + (1.0-progress_between_points) * end_box_vectors
             else:
                 interp_box_vecs = None
             current_ideal_anchor = model.anchors[current_ideal_index]
-            interp_positions = interp_positions * unit.nanometers
+            
             if not (alpha in stationary_alphas or anchor.bulkstate):
                 if model.using_toy():
                     set_anchor_cv_values(current_ideal_anchor, interp_positions[0],
@@ -274,11 +280,14 @@ def interpolate_positions(model, anchor_cv_values, stationary_alphas):
                     save_avg_pdb_structure(model, current_ideal_anchor, sim_openmm, 
                                        interp_positions, interp_box_vecs)
                 else:
-                    set_anchor_cv_values(current_ideal_anchor, interp_values)
+                    
+                    #set_anchor_cv_values(current_ideal_anchor, interp_values)
+                    set_anchor_cv_values(current_ideal_anchor, interp_cv_val)
                     save_avg_pdb_structure(model, current_ideal_anchor, sim_openmm, 
                                        interp_positions, interp_box_vecs)
             
-            ideal_cv_values.append(interp_values)
+            #ideal_cv_values.append(interp_values)
+            ideal_cv_values.append(interp_cv_val)
             
             current_ideal_index += 1
             if current_ideal_index >= len(model.anchors) - 1:
@@ -374,13 +383,6 @@ def run_anchor_in_parallel(process_task):
         avg_box_vectors = np.mean(box_vectors_list, axis=0) * unit.nanometers
         set_anchor_cv_values(anchor, avg_values)
         save_avg_pdb_structure(model, anchor, sim_openmm, avg_positions, avg_box_vectors)
-        
-        # TODO: DELETE
-        #positions, box_vectors = load_string_positions(model, alpha)
-        #print("avg_box_vectors:", avg_box_vectors)
-        #print("box_vectors:", box_vectors)
-        #save_avg_pdb_structure(model, anchor, sim_openmm, positions, box_vectors)
-        #exit()
         
         #save_avg_pdb_structure(model, anchor, sim_openmm, reset_positions, reset_box_vectors)
     time_step = hidr_simulation.get_timestep(model)
