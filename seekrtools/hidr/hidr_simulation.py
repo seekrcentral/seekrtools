@@ -161,8 +161,8 @@ def add_simulation(sim_openmm, model, topology, positions, box_vectors,
         sim_openmm.simulation.context.setPositions(positions)
         # For an unknown reason, assigning velocities caused numerical 
         #  instability
-        #sim_openmm.simulation.context.setVelocitiesToTemperature(
-        #    model.openmm_settings.initial_temperature * unit.kelvin)
+        sim_openmm.simulation.context.setVelocitiesToTemperature(
+            model.openmm_settings.initial_temperature * unit.kelvin)
         
     if box_vectors is not None:
         sim_openmm.simulation.context.setPeriodicBoxVectors(
@@ -278,7 +278,7 @@ def add_forces(sim_openmm, model, anchor, restraint_force_constant,
                 continue
         
         cv = model.collective_variables[var_cv]
-        cv_variables = cv.get_variable_values()
+        
         
         curdir = os.getcwd()
         os.chdir(model.anchor_rootdir)
@@ -290,6 +290,7 @@ def add_forces(sim_openmm, model, anchor, restraint_force_constant,
                 var_value = anchor.variables[variable_key]
             else:
                 var_value = value_dict[var_child_cv]
+            cv_variables = child_cv.get_variable_values()
             variables_values_list = [1] + cv_variables \
             + [restraint_force_constant, var_value]
             myforce = make_restraining_force(child_cv, variables_values_list)
@@ -298,6 +299,7 @@ def add_forces(sim_openmm, model, anchor, restraint_force_constant,
                 var_value = anchor.variables[variable_key]
             else:
                 var_value = value_dict[var_cv]
+            cv_variables = cv.get_variable_values()
             variables_values_list = [1] + cv_variables \
             + [restraint_force_constant, var_value]
             myforce = make_restraining_force(cv, variables_values_list)
@@ -339,7 +341,7 @@ def update_forces(sim_openmm, forces, model, anchor, restraint_force_constant,
                 continue
         
         cv = model.collective_variables[var_cv]
-        cv_variables = cv.get_variable_values()
+        
         
         curdir = os.getcwd()
         os.chdir(model.anchor_rootdir)
@@ -351,6 +353,7 @@ def update_forces(sim_openmm, forces, model, anchor, restraint_force_constant,
                 var_value = anchor.variables[variable_key]
             else:
                 var_value = value_dict[var_child_cv]
+            cv_variables = child_cv.get_variable_values()
             variables_values_list = [1] + cv_variables \
             + [restraint_force_constant, var_value]
             update_restraining_force(child_cv, variables_values_list, force,
@@ -360,6 +363,7 @@ def update_forces(sim_openmm, forces, model, anchor, restraint_force_constant,
                 var_value = anchor.variables[variable_key]
             else:
                 var_value = value_dict[var_cv]
+            cv_variables = cv.get_variable_values()
             variables_values_list = [1] + cv_variables \
             + [restraint_force_constant, var_value]
             update_restraining_force(cv, variables_values_list, force,
@@ -545,7 +549,7 @@ def run_SMD_simulation(model, source_anchor_index, destination_anchor_index,
         # the two anchors must share a common variable
         if variable_key in destination_anchor.variables:
             if source_anchor.__class__.__name__ in ["MMVT_toy_anchor"]:
-                start_value = cv.get_cv_value(positions, {})
+                start_value = cv.get_cv_value(positions)
             elif isinstance(cv, mmvt_voronoi_cv.MMVT_Voronoi_CV):
                 var_child_cv = int(variable_key.split("_")[2])
                 start_values = cv.get_openmm_context_cv_value(None, positions, system)
@@ -590,7 +594,7 @@ def run_SMD_simulation(model, source_anchor_index, destination_anchor_index,
     add_simulation(sim_openmm, model, topology, positions, box_vectors, 
                    skip_minimization=True)
     handle_reporters(
-        model, source_anchor, sim_openmm, trajectory_reporter_interval=None, 
+        model, source_anchor, sim_openmm, trajectory_reporter_interval=10, 
         energy_reporter_interval=energy_reporter_interval, 
         smd_dcd_filename=smd_dcd_filename,
         smd_dcd_interval=smd_dcd_interval)

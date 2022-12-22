@@ -59,6 +59,7 @@ def make_single_simulation(model, anchor, restraint_force_constant,
     sim_openmm = hidr_simulation.HIDR_sim_openmm()
     system, topology, positions, box_vectors, num_frames \
         = common_sim_openmm.create_openmm_system(sim_openmm, model, anchor)
+    
     sim_openmm.system = system
     time_step = hidr_simulation.add_integrator(sim_openmm, model)
     common_sim_openmm.add_barostat(system, model)
@@ -68,7 +69,7 @@ def make_single_simulation(model, anchor, restraint_force_constant,
             = cuda_device_index
     common_sim_openmm.add_platform(sim_openmm, model)
     
-    if equilibration_steps > 0:
+    if equilibration_steps > 0 and restraint_force_constant > 0.0:
         forces = hidr_simulation.add_forces(
             sim_openmm, model, anchor, restraint_force_constant, 
             cv_id_list, value_list)
@@ -181,6 +182,115 @@ def get_anchor_cv_values(anchor):
         cv_values.append(anchor.variables[var_name])
     return cv_values
 
+def load_string_positions(model, alpha):
+    anchor = model.anchors[alpha]
+    if model.using_toy():
+        positions = anchor.starting_positions
+        box_vectors = None
+    else:
+        var_string = hidr_base.make_var_string(anchor)
+        string_output_pdb_name = STRING_NAME.format(var_string)
+        pdb_filename = os.path.join(
+            model.anchor_rootdir, anchor.directory, anchor.building_directory,
+            string_output_pdb_name)
+        pdb_structure = parmed.load_file(pdb_filename)
+        positions = pdb_structure.coordinates
+        box_vectors_tuple = pdb_structure.box_vectors.value_in_unit(unit.nanometers)
+        box_vectors = np.array(box_vectors_tuple) * unit.nanometers
+        
+    
+    return positions, box_vectors
+
+def interpolate_positions(model, anchor_cv_values, stationary_alphas):
+    
+    total_distance = 0.0
+    current_ideal_index = 1
+    assert len(model.anchors) >= 2
+    # start by loading all positions and box vectors
+    positions_list = []
+    box_vectors_list = []
+    
+    for alpha, anchor in enumerate(model.anchors):
+        
+        positions, box_vectors = load_string_positions(model, alpha)
+        positions_list.append(positions)
+        box_vectors_list.append(box_vectors)
+        if alpha == len(model.anchors) - 1:
+            # skip the last one
+            break
+        if model.anchors[alpha+1].bulkstate:
+            break
+        
+        start_point = np.array(anchor_cv_values[alpha][0])
+        end_point = np.array(anchor_cv_values[alpha+1][0])
+        segment_distance = np.linalg.norm(end_point-start_point)
+        total_distance += segment_distance
+    
+    even_spacing_distances = np.linspace(0, total_distance, len(model.anchors))
+    
+    total_distance = 0.0
+    ideal_cv_values = [np.array(anchor_cv_values[0][0])]
+    sim_openmm = make_single_simulation(
+        model, anchor, restraint_force_constant=0.0, skip_minimization=True, 
+        equilibration_steps=0, cuda_device_index=None)
+    
+    for alpha, anchor in enumerate(model.anchors):
+        if alpha == len(model.anchors) - 1:
+            # skip the last one
+            break
+        if model.anchors[alpha+1].bulkstate:
+            break
+        
+        start_point = np.array(anchor_cv_values[alpha][0])
+        end_point = np.array(anchor_cv_values[alpha+1][0])
+        start_box_vectors = box_vectors_list[alpha]
+        start_positions = positions_list[alpha]
+        end_positions = positions_list[alpha+1]
+        start_box_vectors = box_vectors_list[alpha]
+        end_box_vectors = box_vectors_list[alpha+1]
+        segment_distance = np.linalg.norm(end_point-start_point)
+        current_ideal_total = even_spacing_distances[current_ideal_index]
+        current_ideal_distance = current_ideal_total - total_distance
+        assert current_ideal_distance >= 0.0
+        while (current_ideal_distance < segment_distance) \
+                and (current_ideal_index < len(model.anchors)-1):
+            
+            progress_between_points = current_ideal_distance / segment_distance
+            interp_values = (1.0-progress_between_points) * start_point \
+                                  + progress_between_points * end_point
+            interp_positions = (1.0-progress_between_points) * start_positions \
+                                  + progress_between_points * end_positions
+            if start_box_vectors is not None and end_box_vectors is not None:
+                interp_box_vecs = progress_between_points * start_box_vectors \
+                           + (1.0-progress_between_points) * end_box_vectors
+            else:
+                interp_box_vecs = None
+            current_ideal_anchor = model.anchors[current_ideal_index]
+            interp_positions = interp_positions * unit.nanometers
+            if not (alpha in stationary_alphas or anchor.bulkstate):
+                if model.using_toy():
+                    set_anchor_cv_values(current_ideal_anchor, interp_positions[0],
+                                         as_positions=True)
+                    save_avg_pdb_structure(model, current_ideal_anchor, sim_openmm, 
+                                       interp_positions, interp_box_vecs)
+                else:
+                    set_anchor_cv_values(current_ideal_anchor, interp_values)
+                    save_avg_pdb_structure(model, current_ideal_anchor, sim_openmm, 
+                                       interp_positions, interp_box_vecs)
+            
+            ideal_cv_values.append(interp_values)
+            
+            current_ideal_index += 1
+            if current_ideal_index >= len(model.anchors) - 1:
+                ideal_cv_values.append(end_point)
+                break
+            current_ideal_total = even_spacing_distances[current_ideal_index]
+            current_ideal_distance = current_ideal_total - total_distance
+        
+        total_distance += segment_distance
+    
+    return ideal_cv_values
+        
 def run_anchor_in_parallel(process_task):
     model, alpha, swarm_size, steps_per_iter, cuda_device_index, \
         use_centroid, skip_minimization, equilibration_steps, \
@@ -226,7 +336,7 @@ def run_anchor_in_parallel(process_task):
     state = sim_openmm.simulation.context.getState(
         getPositions=True, getVelocities=False, 
         enforcePeriodicBox=enforcePeriodicBox)
-    reset_positions = state.getPositions()
+    reset_positions = state.getPositions(asNumpy=True)
     reset_box_vectors = state.getPeriodicBoxVectors(asNumpy=True)
     swarm_positions_list = []
     box_vectors_list = []
@@ -255,13 +365,24 @@ def run_anchor_in_parallel(process_task):
     # Write the averaged PDB and assign the new CV values to the model
     if model.using_toy():
         set_anchor_cv_values(anchor, avg_positions, as_positions=True)
+        save_avg_pdb_structure(model, anchor, sim_openmm, [avg_positions], None)
+        #reset_vec = reset_positions
+        #set_anchor_cv_values(anchor, reset_vec, as_positions=True)
     else:
         avg_values = voronoi_cv.get_openmm_context_cv_value(
             None, avg_positions, sim_openmm.system)
         avg_box_vectors = np.mean(box_vectors_list, axis=0) * unit.nanometers
         set_anchor_cv_values(anchor, avg_values)
-        #save_avg_pdb_structure(model, anchor, sim_openmm, avg_positions, avg_box_vectors)
-        save_avg_pdb_structure(model, anchor, sim_openmm, reset_positions, reset_box_vectors)
+        save_avg_pdb_structure(model, anchor, sim_openmm, avg_positions, avg_box_vectors)
+        
+        # TODO: DELETE
+        #positions, box_vectors = load_string_positions(model, alpha)
+        #print("avg_box_vectors:", avg_box_vectors)
+        #print("box_vectors:", box_vectors)
+        #save_avg_pdb_structure(model, anchor, sim_openmm, positions, box_vectors)
+        #exit()
+        
+        #save_avg_pdb_structure(model, anchor, sim_openmm, reset_positions, reset_box_vectors)
     time_step = hidr_simulation.get_timestep(model)
     total_time = time.time() - start_time
     total_steps = equilibration_steps + swarm_size * steps_per_iter
@@ -295,29 +416,31 @@ def smst(model, cuda_device_args=None, iterations=100, swarm_size=10,
         for process_task_set in process_instructions:
             # loop through the serial list of parallel tasks
             num_processes = len(process_task_set)
-            with multiprocessing.get_context("spawn").Pool(num_processes) as p:
-                p.map(run_anchor_in_parallel, process_task_set)
+            #with multiprocessing.get_context("spawn").Pool(num_processes) as p:
+            #    p.map(run_anchor_in_parallel, process_task_set)
             
             # Serial run - to start with
-            #run_anchor_in_parallel(process_task_set[0])
+            run_anchor_in_parallel(process_task_set[0])
         
         for alpha, anchor in enumerate(model.anchors):
-            if alpha in stationary_alphas or anchor.bulkstate:
-                continue
+            #if alpha in stationary_alphas or anchor.bulkstate:
+            #    continue
             anchor_cv_values[alpha] = [get_anchor_cv_values(anchor)]
-                    
-        ideal_points = string_base.interpolate_points(
-            model, anchor_cv_values, convergence_factor=1.0, smoothing_factor=smoothing_factor)
-        for alpha, anchor in enumerate(model.anchors):
-            if alpha in stationary_alphas or anchor.bulkstate:
-                continue
-            set_anchor_cv_values(anchor, ideal_points[alpha])
-            anchor_cv_values[alpha] = [ideal_points[alpha]]
-        string_base.log_string_results(model, iteration, anchor_cv_values, log_filename)
+        
         if use_centroid:
-            string_base.define_new_starting_states(
-                model, voronoi_cv, anchor_cv_values, ideal_points, 
-                stationary_alphas)
+            raise Exception("Centroid mode not yet supported.")
+        else:
+            ideal_cv_values = interpolate_positions(
+                model, anchor_cv_values, stationary_alphas)
+            
+            for alpha, anchor in enumerate(model.anchors):
+                if alpha in stationary_alphas or anchor.bulkstate:
+                    continue
+                anchor_cv_values[alpha] = [ideal_cv_values[alpha]]
+            
+        string_base.log_string_results(model, iteration, anchor_cv_values, 
+                                       log_filename)
+            
         string_base.redefine_anchor_neighbors(model, voronoi_cv, skip_checks=True)
         string_base.save_new_model(model, save_old_model=False, overwrite_log=False)
         #assert check.check_systems_within_Voronoi_cells(model)
@@ -363,12 +486,12 @@ if __name__ == "__main__":
         type=float, help="The degree to smoothen the curve describing the "\
         "string going through each anchor. Default: 0.0")
     #NOTE: Benoit Roux uses a smoothing constant of 0.1 !!!
-    argparser.add_argument(
-        "-C", "--use_centroid", dest="use_centroid", default=False,
-        help="Whether to assign the displacement to the centroid "\
-        "of the sampled swarm. If left at False, then the average of the "\
-        "swarm is used by default as the CV point, and the previous iter's "\
-        "structure is used as a starting point.", action="store_true")
+    #argparser.add_argument(
+    #    "-C", "--use_centroid", dest="use_centroid", default=False,
+    #    help="Whether to assign the displacement to the centroid "\
+    #    "of the sampled swarm. If left at False, then the average of the "\
+    #    "swarm is used by default as the CV point, and the previous iter's "\
+    #    "structure is used as a starting point.", action="store_true")
     argparser.add_argument(
         "-m", "--skip_minimization", dest="skip_minimization", default=False,
         help="Whether to skip minimization when the starting "\
@@ -396,7 +519,8 @@ if __name__ == "__main__":
     steps_per_iter = args["steps_per_iter"]
     stationary_states = args["stationary_states"]
     smoothing_factor = args["smoothing_factor"]
-    use_centroid = args["use_centroid"]
+    #use_centroid = args["use_centroid"]
+    use_centroid = False
     skip_minimization = args["skip_minimization"]
     equilibration_steps = args["equilibration_steps"]
     restraint_force_constant = args["restraint_force_constant"]
