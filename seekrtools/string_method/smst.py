@@ -416,11 +416,11 @@ def smst(model, cuda_device_args=None, iterations=100, swarm_size=10,
         for process_task_set in process_instructions:
             # loop through the serial list of parallel tasks
             num_processes = len(process_task_set)
-            #with multiprocessing.get_context("spawn").Pool(num_processes) as p:
-            #    p.map(run_anchor_in_parallel, process_task_set)
+            with multiprocessing.get_context("spawn").Pool(num_processes) as p:
+                p.map(run_anchor_in_parallel, process_task_set)
             
             # Serial run - to start with
-            run_anchor_in_parallel(process_task_set[0])
+            #run_anchor_in_parallel(process_task_set[0])
         
         for alpha, anchor in enumerate(model.anchors):
             #if alpha in stationary_alphas or anchor.bulkstate:
