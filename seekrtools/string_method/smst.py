@@ -77,7 +77,7 @@ def make_single_simulation(model, anchor, restraint_force_constant,
     hidr_simulation.add_simulation(
         sim_openmm, model, topology, positions, box_vectors, 
         skip_minimization=True)
-    return sim_openmm
+    return sim_openmm, positions
 
 def make_simulation_set(model, stationary_alphas, restraint_force_constant, 
                         skip_minimization):
@@ -90,7 +90,7 @@ def make_simulation_set(model, stationary_alphas, restraint_force_constant,
             sim_openmm_list.append(None)
             continue
         print("making simulation object:", alpha, "out of:", len(model.anchors))
-        sim_openmm = make_single_simulation(
+        sim_openmm, positions = make_single_simulation(
             model, anchor, restraint_force_constant, skip_minimization, 
             equilibration_steps)
         sim_openmm_list.append(sim_openmm)
@@ -148,6 +148,7 @@ def save_avg_pdb_structure(model, anchor, sim_openmm, positions, box_vectors):
                                            sim_openmm.system)
         parm.positions = positions
         parm.box_vectors = box_vectors
+        print("saving file:", output_pdb_file)
         parm.save(output_pdb_file, overwrite=True)
 
 def save_positions_dcd(model, anchor, positions_list, box_vector_list):
@@ -193,6 +194,7 @@ def load_string_positions(model, alpha):
         pdb_filename = os.path.join(
             model.anchor_rootdir, anchor.directory, anchor.building_directory,
             string_output_pdb_name)
+        print("attempting to load:", pdb_filename)
         pdb_structure = parmed.load_file(pdb_filename)
         positions = pdb_structure.coordinates
         box_vectors_tuple = pdb_structure.box_vectors.value_in_unit(unit.nanometers)
@@ -229,7 +231,7 @@ def interpolate_positions(model, anchor_cv_values, stationary_alphas):
     
     total_distance = 0.0
     ideal_cv_values = [np.array(anchor_cv_values[0][0])]
-    sim_openmm = make_single_simulation(
+    sim_openmm, positions = make_single_simulation(
         model, anchor, restraint_force_constant=0.0, skip_minimization=True, 
         equilibration_steps=0, cuda_device_index=None)
     
@@ -317,9 +319,14 @@ def run_anchor_in_parallel(process_task):
         enforcePeriodicBox = True
     
     start_time = time.time()
-    sim_openmm = make_single_simulation(
+    sim_openmm, positions = make_single_simulation(
         model, anchor, restraint_force_constant, skip_minimization, 
         equilibration_steps, cuda_device_index)
+    
+    print("anchor.variables:", anchor.variables)
+    positions_cv_val = voronoi_cv.get_openmm_context_cv_value(
+                None, positions, sim_openmm.system)
+    print("positions_cv_val:", positions_cv_val)
     
     if not skip_minimization:
         sim_openmm.simulation.minimizeEnergy()
@@ -418,11 +425,11 @@ def smst(model, cuda_device_args=None, iterations=100, swarm_size=10,
         for process_task_set in process_instructions:
             # loop through the serial list of parallel tasks
             num_processes = len(process_task_set)
-            with multiprocessing.get_context("spawn").Pool(num_processes) as p:
-                p.map(run_anchor_in_parallel, process_task_set)
+            #with multiprocessing.get_context("spawn").Pool(num_processes) as p:
+            #    p.map(run_anchor_in_parallel, process_task_set)
             
             # Serial run - to start with
-            #run_anchor_in_parallel(process_task_set[0])
+            run_anchor_in_parallel(process_task_set[0])
         
         for alpha, anchor in enumerate(model.anchors):
             #if alpha in stationary_alphas or anchor.bulkstate:
