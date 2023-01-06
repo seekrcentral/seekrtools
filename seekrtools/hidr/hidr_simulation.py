@@ -341,8 +341,6 @@ def update_forces(sim_openmm, forces, model, anchor, restraint_force_constant,
                 continue
         
         cv = model.collective_variables[var_cv]
-        
-        
         curdir = os.getcwd()
         os.chdir(model.anchor_rootdir)
         
@@ -369,6 +367,7 @@ def update_forces(sim_openmm, forces, model, anchor, restraint_force_constant,
             update_restraining_force(cv, variables_values_list, force,
                                      sim_openmm.simulation.context)
         
+        print("updating force to have variables:", variables_values_list)
         os.chdir(curdir)
         
     return

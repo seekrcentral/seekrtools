@@ -284,7 +284,7 @@ if __name__ == "__main__":
         "-M", "--mode", dest="mode", default="SMD", type=str,
         metavar="MODE", help="The 'mode' or type of enhanced sampling method"\
         "to use for generating starting structures for HIDR. At this time, "\
-        "the options 'SMD' and 'RAMD' have been implemented.")
+        "the options 'SMD' and 'RAMD' have been implemented. Default: SMD.")
     
     argparser.add_argument(
         "-p", "--pdb_files", dest="pdb_files", default=[], nargs="*", type=str,
