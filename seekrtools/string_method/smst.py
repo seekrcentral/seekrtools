@@ -216,6 +216,8 @@ def load_string_positions(model, alpha):
     return positions, box_vectors
 
 def interpolate_positions(model, anchor_cv_values, stationary_alphas):
+    curdir = os.getcwd()
+    os.chdir(model.anchor_rootdir)
     voronoi_cv = model.collective_variables[0]
     total_distance = 0.0
     assert len(model.anchors) >= 2
@@ -348,6 +350,7 @@ def interpolate_positions(model, anchor_cv_values, stationary_alphas):
             ideal_cv_values.append(anchor_cv_values[alpha][0])
     
     assert len(model.anchors) == len(ideal_cv_values)
+    os.chdir(curdir)
     return ideal_cv_values
 
 def assert_stationary_alphas_continuity(model, stationary_alphas):
