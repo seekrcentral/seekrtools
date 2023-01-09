@@ -488,8 +488,8 @@ def run_window(model, anchor, sim_openmm, restraint_force_constant, cv_list,
         enforcePeriodicBox = False
     else:
         enforcePeriodicBox = True
-    #sim_openmm.simulation.step(total_number_of_steps)
     print("running:", total_number_of_steps, "steps")
+    sim_openmm.simulation.step(total_number_of_steps)
     state = sim_openmm.simulation.context.getState(
         getPositions=False, getVelocities=False, 
         enforcePeriodicBox=enforcePeriodicBox)
