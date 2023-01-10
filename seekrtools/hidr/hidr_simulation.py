@@ -161,8 +161,8 @@ def add_simulation(sim_openmm, model, topology, positions, box_vectors,
         sim_openmm.simulation.context.setPositions(positions)
         # For an unknown reason, assigning velocities caused numerical 
         #  instability
-        sim_openmm.simulation.context.setVelocitiesToTemperature(
-            model.openmm_settings.initial_temperature * unit.kelvin)
+        #sim_openmm.simulation.context.setVelocitiesToTemperature(
+        #    model.openmm_settings.initial_temperature * unit.kelvin)
         
     if box_vectors is not None:
         sim_openmm.simulation.context.setPeriodicBoxVectors(
@@ -303,7 +303,7 @@ def add_forces(sim_openmm, model, anchor, restraint_force_constant,
             variables_values_list = [1] + cv_variables \
             + [restraint_force_constant, var_value]
             myforce = make_restraining_force(cv, variables_values_list)
-        
+                
         os.chdir(curdir)
         forcenum = sim_openmm.system.addForce(myforce)
         forces.append(myforce)
@@ -367,7 +367,6 @@ def update_forces(sim_openmm, forces, model, anchor, restraint_force_constant,
             update_restraining_force(cv, variables_values_list, force,
                                      sim_openmm.simulation.context)
         
-        print("updating force to have variables:", variables_values_list)
         os.chdir(curdir)
         
     return
@@ -488,13 +487,22 @@ def run_window(model, anchor, sim_openmm, restraint_force_constant, cv_list,
         enforcePeriodicBox = False
     else:
         enforcePeriodicBox = True
-    print("running:", total_number_of_steps, "steps")
+    start_time = time.time()
     sim_openmm.simulation.step(total_number_of_steps)
+    total_time = time.time() - start_time
     state = sim_openmm.simulation.context.getState(
         getPositions=False, getVelocities=False, 
         enforcePeriodicBox=enforcePeriodicBox)
     #positions = state.getPositions()
     box_vectors = state.getPeriodicBoxVectors()
+    
+    # DEBUG
+    timestep = get_timestep(model)
+    simulation_in_ns = total_number_of_steps \
+        * timestep.value_in_unit(unit.picoseconds) * 1e-3
+    total_time_in_days = total_time / 86400.0
+    ns_per_day = simulation_in_ns / total_time_in_days
+    print("window benchmark:", ns_per_day, "ns/day")
     return box_vectors
     
 def run_SMD_simulation(model, source_anchor_index, destination_anchor_index, 
@@ -552,7 +560,7 @@ def run_SMD_simulation(model, source_anchor_index, destination_anchor_index,
                 start_values = cv.get_cv_value(positions)
             else:
                 start_values = cv.get_openmm_context_cv_value(None, positions, system)
-            
+                        
             if isinstance(cv, mmvt_voronoi_cv.MMVT_Voronoi_CV):
                 var_child_cv = int(variable_key.split("_")[2])
                 start_value = start_values[var_child_cv]
@@ -583,7 +591,7 @@ def run_SMD_simulation(model, source_anchor_index, destination_anchor_index,
     start_time = time.time()
     
     # Make the system and simulation
-    energy_reporter_interval = None
+    energy_reporter_interval = steps_in_window // 10
     sim_openmm = HIDR_sim_openmm()
     system, topology, positions, box_vectors, num_frames \
         = common_sim_openmm.create_openmm_system(sim_openmm, model, 
@@ -597,7 +605,8 @@ def run_SMD_simulation(model, source_anchor_index, destination_anchor_index,
     add_simulation(sim_openmm, model, topology, positions, box_vectors, 
                    skip_minimization=True)
     handle_reporters(
-        model, source_anchor, sim_openmm, trajectory_reporter_interval=10, 
+        model, source_anchor, sim_openmm, 
+        trajectory_reporter_interval=steps_in_window, 
         energy_reporter_interval=energy_reporter_interval, 
         smd_dcd_filename=smd_dcd_filename,
         smd_dcd_interval=smd_dcd_interval)

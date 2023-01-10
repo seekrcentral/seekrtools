@@ -147,7 +147,7 @@ def save_avg_pdb_structure(model, anchor, sim_openmm, positions, box_vectors):
     
     if anchor.__class__.__name__ in ["MMVT_toy_anchor"]:
         anchor.starting_positions = np.array(positions)
-        
+        return None
     else:
         var_string = hidr_base.make_var_string(anchor)
         string_output_pdb_name = STRING_NAME.format(var_string)
@@ -162,6 +162,7 @@ def save_avg_pdb_structure(model, anchor, sim_openmm, positions, box_vectors):
         parm.box_vectors = box_vectors
         print("saving file:", output_pdb_file)
         parm.save(output_pdb_file, overwrite=True)
+        return string_output_pdb_name
 
 def save_positions_dcd(model, anchor, positions_list, box_vector_list):
     
@@ -177,15 +178,19 @@ def save_positions_dcd(model, anchor, positions_list, box_vector_list):
 def set_anchor_cv_values(anchor, cv_values, as_positions=False):
     num_variables = len(anchor.variables)
     if as_positions:
+        new_cv_values = []
         for i in range(num_variables):
             var_name = "value_0_{}".format(i)
             j = i // 3
             anchor.variables[var_name] = cv_values[j,i].value_in_unit(unit.nanometers)
+            new_cv_values.append(anchor.variables[var_name])
+        return new_cv_values
     else:
         
         for i in range(num_variables):
             var_name = "value_0_{}".format(i)
             anchor.variables[var_name] = cv_values[i]
+        return cv_values
     
 def get_anchor_cv_values(anchor):
     num_variables = len(anchor.variables)
@@ -322,16 +327,19 @@ def interpolate_positions(model, anchor_cv_values, stationary_alphas):
             current_ideal_anchor = model.anchors[current_ideal_index]
             
             if model.using_toy():
-                set_anchor_cv_values(current_ideal_anchor, interp_positions,
-                                     as_positions=True)
+                #set_anchor_cv_values(current_ideal_anchor, interp_positions,
+                #                     as_positions=True)
+                set_anchor_cv_values(current_ideal_anchor, interp_values)
                 #save_avg_pdb_structure(model, current_ideal_anchor, sim_openmm, 
                 #                   [interp_positions], interp_box_vecs)
             else:
-                set_anchor_cv_values(current_ideal_anchor, interp_cv_val)
+                #set_anchor_cv_values(current_ideal_anchor, interp_cv_val)
+                set_anchor_cv_values(current_ideal_anchor, interp_values)
                 #save_avg_pdb_structure(model, current_ideal_anchor, sim_openmm, 
                 #                   interp_positions, interp_box_vecs)
             
-            ideal_cv_values.append(interp_cv_val)
+            #ideal_cv_values.append(interp_cv_val)
+            ideal_cv_values.append(interp_values)
             
             current_ideal_index += 1
             counter += 1
@@ -392,8 +400,6 @@ def minimize_with_CPU(sim_openmm, model, box_vectors, positions,
         enforcePeriodicBox=enforcePeriodicBox)
     post_cpu_min_potential_energy = state.getPotentialEnergy()
     post_cpu_min_kinetic_energy = state.getKineticEnergy()
-    print("post_CPU_min_potential_energy:", post_cpu_min_potential_energy)
-    print("post_CPU_min_kinetic_energy:", post_cpu_min_kinetic_energy)
     new_positions = state.getPositions(asNumpy=True)
     return new_positions
     
@@ -421,14 +427,11 @@ def run_anchor_in_parallel(process_task):
     cv_before_min = voronoi_cv.get_openmm_context_cv_value(
                     context=None, positions=positions, 
                     system=sim_openmm.system)
-    print("cv before minimization:", cv_before_min)
     state = sim_openmm.simulation.context.getState(
         getEnergy=True,
         enforcePeriodicBox=enforcePeriodicBox)
     pre_min_potential_energy = state.getPotentialEnergy()
     pre_min_kinetic_energy = state.getKineticEnergy()
-    print("pre_min_potential_energy:", pre_min_potential_energy)
-    print("pre_min_kinetic_energy:", pre_min_kinetic_energy)
     
     if not skip_minimization:
         sim_openmm.simulation.minimizeEnergy()
@@ -440,25 +443,8 @@ def run_anchor_in_parallel(process_task):
                     context=None, positions=post_min_positions, 
                     system=sim_openmm.system)
         set_anchor_cv_values(anchor, positions_cv_val)
-        print("cv_val after minimization:", positions_cv_val)
         post_gpu_min_potential_energy = state.getPotentialEnergy()
         post_gpu_min_kinetic_energy = state.getKineticEnergy()
-        print("post_gpu_min_potential_energy:", post_gpu_min_potential_energy)
-        print("post_gpu_min_kinetic_energy:", post_gpu_min_kinetic_energy)
-        """
-        if post_gpu_min_potential_energy > CUTOFF_TO_USE_CPU_MINIMIZER:
-            new_positions = minimize_with_CPU(
-                sim_openmm, model, box_vectors, positions, enforcePeriodicBox)
-            sim_openmm.simulation.context.setPositions(new_positions)
-            sim_openmm.simulation.minimizeEnergy()
-            state = sim_openmm.simulation.context.getState(
-                getPositions=True, getVelocities=False, getEnergy=True,
-                enforcePeriodicBox=enforcePeriodicBox)
-            post_cpu_min_potential_energy = state.getPotentialEnergy()
-            post_cpu_min_kinetic_energy = state.getKineticEnergy()
-            print("post_CPU_GPU_min_potential_energy:", post_cpu_min_potential_energy)
-            print("post_CPU_GPU_min_kinetic_energy:", post_cpu_min_kinetic_energy)
-        """
     
     if equilibration_steps > 0:
         print("performing equilibration for image:", alpha)
@@ -495,7 +481,6 @@ def run_anchor_in_parallel(process_task):
     post_equil_cv_val = voronoi_cv.get_openmm_context_cv_value(
         context=None, positions=reset_positions, 
         system=sim_openmm.system)
-    print("post_equil_cv_val:", post_equil_cv_val)
     
     reset_box_vectors = state.getPeriodicBoxVectors(asNumpy=True)
     swarm_positions_list = []
@@ -524,9 +509,10 @@ def run_anchor_in_parallel(process_task):
     sim_openmm.simulation.context.setPositions(avg_positions)
     # Write the averaged PDB and assign the new CV values to the model
     if model.using_toy():
-        set_anchor_cv_values(anchor, avg_positions, as_positions=True)
+        avg_values = set_anchor_cv_values(anchor, avg_positions, as_positions=True)
         #save_avg_pdb_structure(model, anchor, sim_openmm, [avg_positions], None)
-        save_avg_pdb_structure(model, anchor, sim_openmm, [reset_positions], None)
+        pdb_filename = save_avg_pdb_structure(model, anchor, sim_openmm, [reset_positions], None)
+        positions_vec = [reset_positions]
         #reset_vec = reset_positions
         #set_anchor_cv_values(anchor, reset_vec, as_positions=True)
     else:
@@ -535,7 +521,8 @@ def run_anchor_in_parallel(process_task):
         avg_box_vectors = np.mean(box_vectors_list, axis=0) * unit.nanometers
         set_anchor_cv_values(anchor, avg_values)
         #save_avg_pdb_structure(model, anchor, sim_openmm, avg_positions, avg_box_vectors)
-        save_avg_pdb_structure(model, anchor, sim_openmm, reset_positions, reset_box_vectors)
+        pdb_filename = save_avg_pdb_structure(model, anchor, sim_openmm, reset_positions, reset_box_vectors)
+        positions_vec = reset_box_vectors
         
     time_step = hidr_simulation.get_timestep(model)
     total_time = time.time() - start_time
@@ -546,7 +533,7 @@ def run_anchor_in_parallel(process_task):
     ns_per_day = simulation_in_ns / total_time_in_days
     print("Benchmark:", ns_per_day, "ns/day")
     os.chdir(curdir)
-    return
+    return avg_values, pdb_filename, positions_vec
 
 def smst(model, cuda_device_args=None, iterations=100, swarm_size=10, 
          steps_per_iter=100, stationary_states="", smoothing_factor=0.0, 
@@ -573,8 +560,21 @@ def smst(model, cuda_device_args=None, iterations=100, swarm_size=10,
             # loop through the serial list of parallel tasks
             num_processes = len(process_task_set)
             with multiprocessing.get_context("spawn").Pool(num_processes) as p:
-                p.map(run_anchor_in_parallel, process_task_set)
-            
+                for i, result in enumerate(p.map(run_anchor_in_parallel, process_task_set)):
+                    alpha = process_task_set[0][1]
+                    cv_values = result[0]
+                    pdb_filename = result[1]
+                    positions_vec_or_box_vec = result[2]
+                    set_anchor_cv_values(model.anchors[alpha], cv_values)
+                    if model.using_toy:
+                        model.anchors[alpha].starting_positions \
+                            = np.array(positions_vec_or_box_vec)
+                    else:
+                        hidr_base.change_anchor_pdb_filename(
+                            model.anchors[alpha], pdb_filename)
+                        hidr_base.change_anchor_box_vectors(
+                            model.anchors[alpha], positions_vec_or_box_vec)
+                    
             # Serial run - to start with
             #run_anchor_in_parallel(process_task_set[0])
         
@@ -582,7 +582,7 @@ def smst(model, cuda_device_args=None, iterations=100, swarm_size=10,
             #if alpha in stationary_alphas or anchor.bulkstate:
             #    continue
             anchor_cv_values[alpha] = [get_anchor_cv_values(anchor)]
-        
+                
         if use_centroid:
             raise Exception("Centroid mode not yet supported.")
         else:
@@ -593,7 +593,7 @@ def smst(model, cuda_device_args=None, iterations=100, swarm_size=10,
                 if alpha in stationary_alphas or anchor.bulkstate:
                     continue
                 anchor_cv_values[alpha] = [ideal_cv_values[alpha]]
-            
+                    
         string_base.log_string_results(model, iteration, anchor_cv_values, 
                                        log_filename)
             
