@@ -22,6 +22,7 @@ from collections.abc import Iterable
 import multiprocessing
 
 import numpy as np
+from scipy.interpolate import splprep, splev
 import parmed
 import openmm
 import openmm.app as openmm_app
@@ -220,12 +221,33 @@ def load_string_positions(model, alpha):
     
     return positions, box_vectors
 
-def interpolate_positions(model, anchor_cv_values, stationary_alphas):
+def smoothen_anchor_cv_values(anchor_cv_values, adj_smoothing_factor):
+    new_anchor_cv_values = {}
+    num_anchors = len(anchor_cv_values)
+    assert num_anchors > 2
+    new_anchor_cv_values[0] = anchor_cv_values[0]
+    for i in range(1, num_anchors-1):
+        
+        new_variables = []
+        for j in range(len(anchor_cv_values[i][0])):
+            displacement = anchor_cv_values[i-1][0][j] \
+                - 2*anchor_cv_values[i][0][j] + anchor_cv_values[i+1][0][j]
+            r = adj_smoothing_factor * displacement
+            new_variables.append(anchor_cv_values[i][0][j] + r)
+        
+        new_anchor_cv_values[i] = [new_variables]
+        
+    new_anchor_cv_values[num_anchors-1] = anchor_cv_values[num_anchors-1]
+    return new_anchor_cv_values
+
+def interpolate_positions(model, anchor_cv_values, stationary_alphas, smoothing_factor):
     curdir = os.getcwd()
     os.chdir(model.anchor_rootdir)
+    num_anchors = len(model.anchors)
     voronoi_cv = model.collective_variables[0]
+    num_variables = len(model.anchors[0].variables)
     total_distance = 0.0
-    assert len(model.anchors) >= 2
+    assert num_anchors >= 2
     positions_list = []
     box_vectors_list = []
     total_num_anchors_to_interpolate = 0
@@ -256,8 +278,10 @@ def interpolate_positions(model, anchor_cv_values, stationary_alphas):
         total_num_anchors_to_interpolate += 1
         
     start_span_index = max(0, start_index-1)
-    last_span_index = min(last_index+1, len(model.anchors)-1)
+    last_span_index = min(last_index+1, num_anchors-1)
     total_num_anchors_to_span = last_span_index - start_span_index + 1
+    
+    anchor_cv_values = smoothen_anchor_cv_values(anchor_cv_values, smoothing_factor)
     
     for alpha in range(start_span_index, last_span_index):
         start_point = np.array(anchor_cv_values[alpha][0])
@@ -289,7 +313,7 @@ def interpolate_positions(model, anchor_cv_values, stationary_alphas):
         if all_done:
             break
         
-        if alpha == len(model.anchors) - 1:
+        if alpha == num_anchors - 1:
             # skip the last one
             break
         
@@ -353,13 +377,35 @@ def interpolate_positions(model, anchor_cv_values, stationary_alphas):
         
         total_distance += segment_distance
     
-    if last_index+1 < len(model.anchors):
-        for alpha in range(last_index+1, len(model.anchors)):
+    if last_index+1 < num_anchors:
+        for alpha in range(last_index+1, num_anchors):
             ideal_cv_values.append(anchor_cv_values[alpha][0])
     
-    assert len(model.anchors) == len(ideal_cv_values)
+    assert num_anchors == len(ideal_cv_values)
+    
+    """
+    # Now smoothen the anchor points, if necessary
+    adjusted_smoothing_factor = smoothing_factor * num_anchors
+    ideal_cv_values_array = np.array(ideal_cv_values)
+    vector_array_list = []
+    for i in range(num_variables):
+        variable_i_list = []
+        for value in ideal_cv_values_array[:,i]:
+            variable_i_list.append(value)
+        vector_array_list.append(variable_i_list)
+    
+    tck, u, = splprep(vector_array_list, k=1, s=smoothing_factor) #adjusted_smoothing_factor)
+    u2 = np.linspace(0, 1, num_anchors)
+    new_points = np.array(splev(u2, tck)).T
+    for alpha, anchor in enumerate(model.anchors):
+        if anchor.bulkstate:
+            break
+        set_anchor_cv_values(anchor, new_points[alpha])
+    """
+    
     os.chdir(curdir)
     return ideal_cv_values
+    #return new_points
 
 def assert_stationary_alphas_continuity(model, stationary_alphas):
     start_index = None
@@ -587,7 +633,7 @@ def smst(model, cuda_device_args=None, iterations=100, swarm_size=10,
             raise Exception("Centroid mode not yet supported.")
         else:
             ideal_cv_values = interpolate_positions(
-                model, anchor_cv_values, stationary_alphas)
+                model, anchor_cv_values, stationary_alphas, smoothing_factor)
             
             for alpha, anchor in enumerate(model.anchors):
                 if alpha in stationary_alphas or anchor.bulkstate:
