@@ -23,9 +23,9 @@ proc view_starting_structures {{path_to_model_dir "."}} {
         set pdb_file [lindex [ls "*.pdb"] 1]
         puts "pdb_file: $pdb_file"
         if {$i == 0} {
-            set my_molecule [mol new $pdb_file]
+            set my_molecule [mol new $pdb_file first 0 last 0]
         } else {
-            mol addfile $pdb_file
+            mol addfile $pdb_file first 0 last 0
         }
         cd ../..
     }

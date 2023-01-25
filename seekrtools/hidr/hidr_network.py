@@ -126,7 +126,8 @@ def get_procedure(model, source_anchor_indices, destination_list):
             # No more paths found
             break
         visited_anchor_dict[next_anchor_index] = next_anchor_distance
-        procedure.append((prev_anchor_index, next_anchor_index))
+        if next_anchor_index in destination_list:
+            procedure.append((prev_anchor_index, next_anchor_index))
         if next_anchor_index in tmp_destination_list:
             tmp_destination_list.remove(next_anchor_index)
         if len(tmp_destination_list) == 0:
