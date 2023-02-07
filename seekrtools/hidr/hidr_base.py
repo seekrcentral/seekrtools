@@ -5,10 +5,12 @@ Base classes, objects, functions, and constants for the HIDR program.
 import os
 import glob
 from shutil import copyfile
+import tempfile
 
 import numpy as np
 import mdtraj
 import seekr2.modules.common_base as base
+import seekr2.modules.mmvt_sim_openmm as mmvt_sim_openmm
 import seekr2.modules.check as check
 try:
     import openmm.unit as unit
@@ -262,7 +264,11 @@ def save_new_model(model, save_old_model=True):
         The unfilled Seekr2 Model object.
         
     """
-    # TODO: enable different naming for SMD vs. RAMD
+    if model.openmm_settings.cuda_platform_settings is not None:
+        cuda_device_index = model.openmm_settings.cuda_platform_settings\
+            .cuda_device_index
+        model.openmm_settings.cuda_platform_settings.cuda_device_index = 0
+        
     model_path = os.path.join(model.anchor_rootdir, "model.xml")
     if os.path.exists(model_path) and save_old_model:
         # This is expected, because this old model was loaded
@@ -279,6 +285,9 @@ def save_new_model(model, save_old_model=True):
     model.anchor_rootdir = "."
     base.save_model(model, model_path)
     model.anchor_rootdir = old_rootdir
+    if model.openmm_settings.cuda_platform_settings is not None:
+        model.openmm_settings.cuda_platform_settings.cuda_device_index\
+            = cuda_device_index
     return
 
 def change_anchor_pdb_filename(anchor, new_pdb_filename):
@@ -304,26 +313,7 @@ def change_anchor_pdb_filename(anchor, new_pdb_filename):
     return
 
 def get_anchor_pdb_filename(anchor):
-    """
-    Obtain and return an anchor's starting structure filename.
-    
-    Parameters
-    ----------
-    anchor : Anchor()
-        For a given Anchor object, assign a new PDB file name into the
-        proper field, depending on whether the input parameters are
-        Amber, Charmm, etc.
-    """
-    if anchor.amber_params is not None:
-        return anchor.amber_params.pdb_coordinates_filename
-    
-    if anchor.forcefield_params is not None:
-        return anchor.forcefield_params.pdb_coordinates_filename
-        
-    if anchor.charmm_params is not None:
-        return anchor.charmm_params.pdb_coordinates_filename
-    
-    return ""
+    return base.get_anchor_pdb_filename(anchor)
         
 def change_anchor_box_vectors(anchor, new_box_vectors):
     """
@@ -367,14 +357,22 @@ def assign_pdb_file_to_model(model, pdb_file):
         
     """
     for anchor in model.anchors:
-        traj = mdtraj.load(pdb_file)
+        #traj = mdtraj.load(pdb_file)
+        tmp_path = tempfile.NamedTemporaryFile()
+        output_file = tmp_path.name
+        my_sim_openmm = mmvt_sim_openmm.create_sim_openmm(
+            model, anchor, output_file, use_only_reference=True)
+        context = my_sim_openmm.simulation.context
+        
         between_milestones = True
         for milestone in anchor.milestones:
             cv = model.collective_variables[milestone.cv_index]
             curdir = os.getcwd()
             os.chdir(model.anchor_rootdir)
-            result = cv.check_mdtraj_within_boundary(traj, milestone.variables, 
-                                                     verbose=False)
+            #result = cv.check_mdtraj_within_boundary(traj, milestone.variables, 
+            #                                         verbose=False)
+            result = cv.check_openmm_context_within_boundary(
+                context, milestone.variables, verbose=True)
             os.chdir(curdir)
             if not result:
                 between_milestones = False

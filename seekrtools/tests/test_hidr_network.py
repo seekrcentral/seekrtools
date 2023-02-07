@@ -34,17 +34,17 @@ def test_find_next_anchor_index(host_guest_mmvt_model):
             host_guest_mmvt_model, visited_anchor_dict)
     assert prev_anchor_index == 1
     assert next_anchor_index == 2
-    assert np.isclose(next_anchor_distance, 0.2)
+    assert np.isclose(next_anchor_distance, 0.11)
     return
 
 def test_get_procedure(host_guest_mmvt_model):
     """
     
     """
-    procedure = hidr_network.get_procedure(host_guest_mmvt_model, [0], [2])
+    procedure = hidr_network.get_procedure(host_guest_mmvt_model, [0], [1,2])
     assert procedure == [(0,1), (1,2)]
     
-    procedure = hidr_network.get_procedure(host_guest_mmvt_model, [0], [4])
+    procedure = hidr_network.get_procedure(host_guest_mmvt_model, [0], [1,2,3,4])
     assert procedure == [(0,1), (1,2), (2,3), (3,4)]
     return
 

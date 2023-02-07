@@ -591,7 +591,7 @@ def run_SMD_simulation(model, source_anchor_index, destination_anchor_index,
     start_time = time.time()
     
     # Make the system and simulation
-    energy_reporter_interval = steps_in_window // 10
+    energy_reporter_interval = max(steps_in_window // 10, 1)
     sim_openmm = HIDR_sim_openmm()
     system, topology, positions, box_vectors, num_frames \
         = common_sim_openmm.create_openmm_system(sim_openmm, model, 

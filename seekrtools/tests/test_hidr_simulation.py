@@ -40,7 +40,8 @@ def create_sim(model):
             sim_openmm, model, anchor)
     sim_openmm.system = system
     time_step = hidr_simulation.add_integrator(sim_openmm, model)
-    hidr_simulation.add_barostat(sim_openmm, model)
+    if model.openmm_settings.barostat is not None:
+        hidr_simulation.add_barostat(sim_openmm, model)
     common_sim_openmm.add_platform(sim_openmm, model)
     hidr_simulation.add_forces(
         sim_openmm, model, anchor, restraint_force_constant)
