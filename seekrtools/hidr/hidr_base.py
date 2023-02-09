@@ -362,6 +362,8 @@ def assign_pdb_file_to_model(model, pdb_file):
         
     """
     for anchor in model.anchors:
+        if anchor.bulkstate:
+            break
         #traj = mdtraj.load(pdb_file)
         tmp_path = tempfile.NamedTemporaryFile()
         output_file = tmp_path.name
@@ -406,10 +408,9 @@ def assign_pdb_file_to_model(model, pdb_file):
             box_vectors = base.get_box_vectors_from_pdb(new_pdb_filename)
             change_anchor_box_vectors(anchor, box_vectors)
             anchor.endstate = True
-        else:
-            anchor.endstate = False
-    
-    
+            
+            break
+        
     return anchor.index
 
 def assign_toy_coords_to_model(model, toy_coordinates):
