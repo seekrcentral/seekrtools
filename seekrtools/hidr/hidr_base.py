@@ -16,6 +16,11 @@ try:
     import openmm.unit as unit
 except ModuleNotFoundError:
     import simtk.unit as unit
+    
+try:
+    import openmm.app as openmm_app
+except ImportError:
+    import simtk.openmm.app as openmm_app
 
 HIDR_MODEL_GLOB = "model_pre_hidr_*.xml"
 HIDR_MODEL_BASE = "model_pre_hidr_{}.xml"
@@ -363,6 +368,9 @@ def assign_pdb_file_to_model(model, pdb_file):
         my_sim_openmm = mmvt_sim_openmm.create_sim_openmm(
             model, anchor, output_file, use_only_reference=True)
         context = my_sim_openmm.simulation.context
+        positions_obj = openmm_app.PDBFile(pdb_file)
+        positions = positions_obj.getPositions()
+        context.setPositions(positions)
         
         between_milestones = True
         for milestone in anchor.milestones:
