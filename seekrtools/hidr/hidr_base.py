@@ -370,6 +370,11 @@ def assign_pdb_file_to_model(model, pdb_file):
         context = my_sim_openmm.simulation.context
         positions_obj = openmm_app.PDBFile(pdb_file)
         positions = positions_obj.getPositions()
+        state = context.getState(getPositions = True, enforcePeriodicBox = True)
+        context_positions = state.getPositions()
+        assert len(context_positions) == len(positions), \
+            "Mismatch between atom numbers in anchor parameter file and "\
+            "provided pdb file {}. Incorrect pdb file?".format(pdb_file)
         context.setPositions(positions)
         
         between_milestones = True
@@ -380,7 +385,7 @@ def assign_pdb_file_to_model(model, pdb_file):
             #result = cv.check_mdtraj_within_boundary(traj, milestone.variables, 
             #                                         verbose=False)
             result = cv.check_openmm_context_within_boundary(
-                context, milestone.variables, verbose=True)
+                context, milestone.variables, verbose=False)
             os.chdir(curdir)
             if not result:
                 between_milestones = False
@@ -400,8 +405,11 @@ def assign_pdb_file_to_model(model, pdb_file):
             change_anchor_pdb_filename(anchor, pdb_base)
             box_vectors = base.get_box_vectors_from_pdb(new_pdb_filename)
             change_anchor_box_vectors(anchor, box_vectors)
-            
-            break
+            anchor.endstate = True
+        else:
+            anchor.endstate = False
+    
+    
     return anchor.index
 
 def assign_toy_coords_to_model(model, toy_coordinates):
