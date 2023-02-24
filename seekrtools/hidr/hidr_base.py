@@ -272,7 +272,7 @@ def save_new_model(model, save_old_model=True):
     if model.openmm_settings.cuda_platform_settings is not None:
         cuda_device_index = model.openmm_settings.cuda_platform_settings\
             .cuda_device_index
-        model.openmm_settings.cuda_platform_settings.cuda_device_index = 0
+        model.openmm_settings.cuda_platform_settings.cuda_device_index = "0"
         
     model_path = os.path.join(model.anchor_rootdir, "model.xml")
     if os.path.exists(model_path) and save_old_model:
