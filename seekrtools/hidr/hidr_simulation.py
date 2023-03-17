@@ -573,11 +573,11 @@ def run_SMD_simulation(model, source_anchor_index, destination_anchor_index,
             last_value = destination_anchor.variables[variable_key]
             increment = (last_value - start_value)/NUM_WINDOWS
             total_sq_distance += increment ** 2
-            windows = np.arange(start_value, last_value+0.0001*increment, 
-                                increment)
+            windows = np.linspace(start_value, last_value, NUM_WINDOWS)
+            #windows = np.arange(start_value, last_value+0.0001*increment, 
+            #                    increment)
             windows_list_unzipped.append(windows)
             
-        
     var_string = hidr_base.make_var_string(destination_anchor)
     hidr_output_pdb_name = SMD_NAME.format(var_string)
     windows_list_zipped = list(zip(*windows_list_unzipped))
