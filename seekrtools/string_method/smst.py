@@ -589,6 +589,9 @@ def smst(model, cuda_device_args=None, iterations=100, swarm_size=10,
     assert len(model.collective_variables) == 1
     voronoi_cv = model.collective_variables[0]
     anchor_cv_values = {} #defaultdict(list)
+    for alpha, anchor in enumerate(model.anchors):
+        anchor_cv_values[alpha] = [get_anchor_cv_values(anchor)]
+        
     log_filename = string_base.save_new_model(model, save_old_model=True, overwrite_log=True)
     stationary_alphas = string_base.initialize_stationary_states(model, stationary_states)
     #simulation_set = make_simulation_set(model, stationary_alphas,
@@ -598,8 +601,16 @@ def smst(model, cuda_device_args=None, iterations=100, swarm_size=10,
     
     for iteration in range(iterations):
         print("Iteration:", iteration)
+        if iteration == iterations-1:
+            last_iter = True
+            steps_per_iter_this = 0
+            
+        else:
+            last_iter = False
+            steps_per_iter_this = steps_per_iter
+        
         process_instructions = make_process_instructions(
-            model, swarm_size, steps_per_iter, cuda_device_args, 
+            model, swarm_size, steps_per_iter_this, cuda_device_args, 
             stationary_alphas, use_centroid, skip_minimization, 
             equilibration_steps, restraint_force_constant)
         for process_task_set in process_instructions:
@@ -611,7 +622,12 @@ def smst(model, cuda_device_args=None, iterations=100, swarm_size=10,
                     cv_values = result[0]
                     pdb_filename = result[1]
                     positions_vec_or_box_vec = result[2]
-                    set_anchor_cv_values(model.anchors[alpha], cv_values)
+                    # TODO: consider removing this if statement if the final
+                    #  iter of the string method has starting positions outside
+                    #  of the boundaries
+                    if not last_iter:
+                        set_anchor_cv_values(model.anchors[alpha], cv_values)
+                    
                     if model.using_toy:
                         model.anchors[alpha].starting_positions \
                             = np.array(positions_vec_or_box_vec)
@@ -624,21 +640,22 @@ def smst(model, cuda_device_args=None, iterations=100, swarm_size=10,
             # Serial run - to start with
             #run_anchor_in_parallel(process_task_set[0])
         
-        for alpha, anchor in enumerate(model.anchors):
-            #if alpha in stationary_alphas or anchor.bulkstate:
-            #    continue
-            anchor_cv_values[alpha] = [get_anchor_cv_values(anchor)]
-                
-        if use_centroid:
-            raise Exception("Centroid mode not yet supported.")
-        else:
-            ideal_cv_values = interpolate_positions(
-                model, anchor_cv_values, stationary_alphas, smoothing_factor)
-            
+        if not last_iter:
             for alpha, anchor in enumerate(model.anchors):
-                if alpha in stationary_alphas or anchor.bulkstate:
-                    continue
-                anchor_cv_values[alpha] = [ideal_cv_values[alpha]]
+                #if alpha in stationary_alphas or anchor.bulkstate:
+                #    continue
+                anchor_cv_values[alpha] = [get_anchor_cv_values(anchor)]
+                    
+            if use_centroid:
+                raise Exception("Centroid mode not yet supported.")
+            else:
+                ideal_cv_values = interpolate_positions(
+                    model, anchor_cv_values, stationary_alphas, smoothing_factor)
+                
+                for alpha, anchor in enumerate(model.anchors):
+                    if alpha in stationary_alphas or anchor.bulkstate:
+                        continue
+                    anchor_cv_values[alpha] = [ideal_cv_values[alpha]]
                     
         string_base.log_string_results(model, iteration, anchor_cv_values, 
                                        log_filename)

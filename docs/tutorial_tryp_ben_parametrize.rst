@@ -166,6 +166,10 @@ Use LEAP to Create the Forcefield Parameters for the Solvated System
 If you haven't yet downloaded
 :download:`3ptb_processed.pdb <media/3ptb_processed.pdb>`, please do so now.
 
+.. note::
+  You should remove all CONECT records from your PDB files before using
+  LEAP.
+
 Now with a text editor, copy the following script to a file named **leaprc**::
 
   source leaprc.protein.ff14SB
@@ -297,7 +301,7 @@ a different residue number.
 A script performs this automatically within Seekrtools, named 
 **pqr_resid_for_each_atom.py**::
 
-  python /PATH/TO/seekrtools/seekrtools/pqr_resid_for_each_atom.py \
+  python /PATH/TO/seekrtools/seekrtools/scripts/pqr_resid_for_each_atom.py \
   tryp_ben_ligand_one_resid.pqr tryp_ben_ligand.pqr
 
 Obviously, change "/PATH/TO/seekrtools" to the actual path to your own instance

@@ -248,7 +248,7 @@ def update_restraining_force(cv, variables_values_list, force, context):
     return
 
 def add_forces(sim_openmm, model, anchor, restraint_force_constant, 
-               cv_list=None, window_values=None):
+               cv_list=None, window_values=None, ignore_cv=None):
     """
     Add the proper forces for this restrained simulation.
     
@@ -265,6 +265,8 @@ def add_forces(sim_openmm, model, anchor, restraint_force_constant,
         The restraint force constant (in units of kcal/mol*nm**2.
     """
     value_dict = {}
+    if ignore_cv is None:
+        ignore_cv = []
     if cv_list is not None and window_values is not None:
         for cv_index, value in zip(cv_list, window_values):
             value_dict[cv_index] = value
@@ -291,8 +293,13 @@ def add_forces(sim_openmm, model, anchor, restraint_force_constant,
             else:
                 var_value = value_dict[var_child_cv]
             cv_variables = child_cv.get_variable_values()
+            if var_child_cv in ignore_cv:
+                this_restraint_force_constant = 0.0
+            else:
+                this_restraint_force_constant = restraint_force_constant
+                
             variables_values_list = [1] + cv_variables \
-            + [restraint_force_constant, var_value]
+                + [this_restraint_force_constant, var_value]
             myforce = make_restraining_force(child_cv, variables_values_list)
         else:
             if window_values is None:
@@ -300,8 +307,13 @@ def add_forces(sim_openmm, model, anchor, restraint_force_constant,
             else:
                 var_value = value_dict[var_cv]
             cv_variables = cv.get_variable_values()
+            if var_cv in ignore_cv:
+                this_restraint_force_constant = 0.0
+            else:
+                this_restraint_force_constant = restraint_force_constant
+                
             variables_values_list = [1] + cv_variables \
-            + [restraint_force_constant, var_value]
+            + [this_restraint_force_constant, var_value]
             myforce = make_restraining_force(cv, variables_values_list)
                 
         os.chdir(curdir)
@@ -312,7 +324,7 @@ def add_forces(sim_openmm, model, anchor, restraint_force_constant,
     return forces
 
 def update_forces(sim_openmm, forces, model, anchor, restraint_force_constant, 
-               cv_list=None, window_values=None):
+               cv_list=None, window_values=None, ignore_cv=None):
     """
     Update the forces for this restrained simulation.
     
@@ -329,6 +341,8 @@ def update_forces(sim_openmm, forces, model, anchor, restraint_force_constant,
         The restraint force constant (in units of kcal/mol*nm**2.
     """
     value_dict = {}
+    if ignore_cv is None:
+        ignore_cv = []
     if cv_list is not None and window_values is not None:
         for cv_index, value in zip(cv_list, window_values):
             value_dict[cv_index] = value
@@ -352,8 +366,12 @@ def update_forces(sim_openmm, forces, model, anchor, restraint_force_constant,
             else:
                 var_value = value_dict[var_child_cv]
             cv_variables = child_cv.get_variable_values()
+            if var_child_cv in ignore_cv:
+                this_restraint_force_constant = 0.0
+            else:
+                this_restraint_force_constant = restraint_force_constant
             variables_values_list = [1] + cv_variables \
-            + [restraint_force_constant, var_value]
+                + [this_restraint_force_constant, var_value]
             update_restraining_force(child_cv, variables_values_list, force,
                                      sim_openmm.simulation.context)
         else:
@@ -362,8 +380,12 @@ def update_forces(sim_openmm, forces, model, anchor, restraint_force_constant,
             else:
                 var_value = value_dict[var_cv]
             cv_variables = cv.get_variable_values()
+            if var_cv in ignore_cv:
+                this_restraint_force_constant = 0.0
+            else:
+                this_restraint_force_constant = restraint_force_constant
             variables_values_list = [1] + cv_variables \
-            + [restraint_force_constant, var_value]
+                + [this_restraint_force_constant, var_value]
             update_restraining_force(cv, variables_values_list, force,
                                      sim_openmm.simulation.context)
         
@@ -507,7 +529,7 @@ def run_window(model, anchor, sim_openmm, restraint_force_constant, cv_list,
     
 def run_SMD_simulation(model, source_anchor_index, destination_anchor_index, 
                          restraint_force_constant, translation_velocity,
-                         smd_dcd_interval=None):
+                         smd_dcd_interval=None, ignore_cv=None):
     """
     Run a steered molecular dynamics (SMD) simulation between a source 
     anchor and a destination anchor. The resulting structure will be
@@ -554,6 +576,7 @@ def run_SMD_simulation(model, source_anchor_index, destination_anchor_index,
         var_name = variable_key.split("_")[0]
         var_cv = int(variable_key.split("_")[1])
         cv = model.collective_variables[var_cv]
+        skip_increment = False
         # the two anchors must share a common variable
         if variable_key in destination_anchor.variables:
             if source_anchor.__class__.__name__ in ["MMVT_toy_anchor"]:
@@ -563,16 +586,23 @@ def run_SMD_simulation(model, source_anchor_index, destination_anchor_index,
                         
             if isinstance(cv, mmvt_voronoi_cv.MMVT_Voronoi_CV):
                 var_child_cv = int(variable_key.split("_")[2])
+                if ignore_cv is not None:
+                    if var_child_cv in ignore_cv:
+                        skip_increment = True
                 start_value = start_values[var_child_cv]
                 cv_id_list.append(var_child_cv)
             else:
                 #start_value = cv.get_openmm_context_cv_value(None, positions, system)
+                if ignore_cv is not None:
+                    if var_cv in ignore_cv:
+                        skip_increment = True
                 start_value = start_values
                 cv_id_list.append(var_cv)
                 
             last_value = destination_anchor.variables[variable_key]
-            increment = (last_value - start_value)/NUM_WINDOWS
-            total_sq_distance += increment ** 2
+            if not skip_increment:
+                increment = (last_value - start_value)/NUM_WINDOWS
+                total_sq_distance += increment ** 2
             windows = np.linspace(start_value, last_value, NUM_WINDOWS)
             #windows = np.arange(start_value, last_value+0.0001*increment, 
             #                    increment)
@@ -601,7 +631,7 @@ def run_SMD_simulation(model, source_anchor_index, destination_anchor_index,
     common_sim_openmm.add_platform(sim_openmm, model)
     forces = add_forces(
         sim_openmm, model, source_anchor, restraint_force_constant, 
-        cv_id_list, windows_list_zipped[0])
+        cv_id_list, windows_list_zipped[0], ignore_cv)
     add_simulation(sim_openmm, model, topology, positions, box_vectors, 
                    skip_minimization=True)
     handle_reporters(
@@ -614,7 +644,8 @@ def run_SMD_simulation(model, source_anchor_index, destination_anchor_index,
         print("running_window:", window_values, "steps_in_window:", steps_in_window)
         update_forces(
             sim_openmm, forces, model, source_anchor, restraint_force_constant, 
-            cv_list=cv_id_list, window_values=window_values)
+            cv_list=cv_id_list, window_values=window_values, 
+            ignore_cv=ignore_cv)
         sim_openmm.simulation.context.reinitialize(preserveState=True)
         box_vectors = run_window(
             model, source_anchor, sim_openmm, restraint_force_constant, cv_id_list, 
@@ -719,7 +750,7 @@ def run_RAMD_simulation(model, force_constant, source_anchor_index,
     sim_openmm = HIDR_sim_openmm()
     system, topology, positions, box_vectors, num_frames \
         = common_sim_openmm.create_openmm_system(sim_openmm, model, 
-                                                 source_anchor)
+                                                 source_anchor)    
     sim_openmm.system = system
     time_step = add_integrator(sim_openmm, model)
     common_sim_openmm.add_platform(sim_openmm, model)
@@ -728,6 +759,20 @@ def run_RAMD_simulation(model, force_constant, source_anchor_index,
         model.anchor_rootdir, source_anchor.directory, 
         source_anchor.building_directory)
     log_file_name = os.path.join(source_directory, RAMD_LOG_FILENAME)
+    """" # TODO: remove
+    simulation = openmm_app.Simulation(topology, system, sim_openmm.integrator, sim_openmm.platform, sim_openmm.properties)
+    simulation.context.setPositions(positions)
+    #simulation.context.setVelocitiesToTemperature(300.0 * unit.kelvin)
+    print("box_vectors:", box_vectors.to_quantity())
+    simulation.context.setPeriodicBoxVectors(
+            *box_vectors.to_quantity())
+    #state = simulation.context.getState(getPositions = True, getVelocities = True, enforcePeriodicBox = True)
+    #print("context box vectors:", state.getPeriodicBoxVectors())
+    print("running sim")
+    simulation.step(100)
+    print("successful")
+    exit()
+    """
     simulation = openmm_ramd.RAMDSimulation(
         topology, system, sim_openmm.integrator, force_constant, lig_indices, 
         rec_indices, ramdSteps=steps_per_RAMD_update, 

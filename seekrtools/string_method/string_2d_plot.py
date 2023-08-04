@@ -113,6 +113,7 @@ def plot_potential(model, plot_dir, iteration, anchor_values,
     if not os.path.exists(plot_dir):
         os.mkdir(plot_dir)
     plot_filename = os.path.join(plot_dir, "string_{}.png".format(iteration))
+    print("Saving plot to:", plot_filename)
     plt.savefig(plot_filename)
         
     return

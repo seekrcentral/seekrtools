@@ -62,7 +62,7 @@ def hidr(model, destination, pdb_files=[], toy_coordinates=None, dry_run=False,
          force_overwrite=False, traj_mode=False, smd_dcd_interval=None,
          ligand_atom_indices=None, receptor_atom_indices=None,
          steps_per_RAMD_update=50, steps_per_anchor_check=250,
-         RAMD_cutoff_distance=0.0025, keeping_starting=True):
+         RAMD_cutoff_distance=0.0025, keeping_starting=True, ignore_cv=None):
     """
     Run the full HIDR calculation for a model.
     
@@ -204,7 +204,7 @@ def hidr(model, destination, pdb_files=[], toy_coordinates=None, dry_run=False,
             hidr_simulation.run_SMD_simulation(
                 model, source_anchor_index, destination_anchor_index, 
                 restraint_force_constant, translation_velocity, 
-                smd_dcd_interval)
+                smd_dcd_interval, ignore_cv)
             
             # save the new model file and check the generated structures
             hidr_base.save_new_model(model, save_old_model=False)
@@ -389,6 +389,10 @@ if __name__ == "__main__":
         help="The distance (in nm) at which if the ligand COMs of two "\
         "consecutive updates have not exceeded, change the force direction. "\
         "Default: 0.0025 nm.")
+    argparser.add_argument(
+        "-i", "--ignore_cv", dest="ignore_cv", default=None,
+        metavar="[c1, c2, ...]", help="Enter the CV indices to ignore when "\
+        "making forces, also applies to sub-cvs for MMVT. Default: None. ")
     
     args = argparser.parse_args() # parse the args into a dictionary
     args = vars(args)
@@ -417,6 +421,7 @@ if __name__ == "__main__":
     steps_per_RAMD_update = args["steps_per_RAMD_update"]
     steps_per_anchor_check = args["steps_per_anchor_check"]
     RAMD_cutoff_distance = args["RAMD_cutoff_distance"]
+    ignore_cv = args["ignore_cv"]
     if ligand_atom_indices is None:
         assert receptor_atom_indices is None, \
             "if ligand_atom_indices is None, receptor_atom_indices must also "\
@@ -425,6 +430,9 @@ if __name__ == "__main__":
         ligand_atom_indices = ast.literal_eval(ligand_atom_indices)
         if receptor_atom_indices is not None:
             receptor_atom_indices = ast.literal_eval(receptor_atom_indices)
+    
+    if ignore_cv is not None:
+        ignore_cv = ast.literal_eval(ignore_cv)
     
     model = base.load_model(model_file)
     if cuda_device_index is not None:
@@ -439,4 +447,4 @@ if __name__ == "__main__":
          receptor_atom_indices=receptor_atom_indices,
          steps_per_RAMD_update=steps_per_RAMD_update, 
          steps_per_anchor_check=steps_per_anchor_check,
-         RAMD_cutoff_distance=RAMD_cutoff_distance)
+         RAMD_cutoff_distance=RAMD_cutoff_distance, ignore_cv=ignore_cv)
