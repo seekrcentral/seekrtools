@@ -320,6 +320,16 @@ numbered correctly, with each atom assigned its own residue number.
 Now, the system is parametrized and ready for equilibration. You may proceed
 to the next tutorial.
 
+.. note::
+  At this point, for your own systems, you should consider using the
+  QMrebind tool (https://github.com/seekrcentral/qmrebind.git) to 
+  improve the forcefield parameters of the ligand within the binding site.
+  A tutorial for QMrebind can be found here: 
+  https://qmrebind.readthedocs.io/en/latest/index.html. You may also read
+  the QMrebind publication, and see its successful application to interesting 
+  systems here: 
+  https://chemrxiv.org/engage/chemrxiv/article-details/64d2d5bd69bfb8925a9adabf
+
 Download any Missing Files
 --------------------------
 
