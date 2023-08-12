@@ -348,7 +348,7 @@ def change_anchor_box_vectors(anchor, new_box_vectors):
         
     return
 
-def assign_pdb_file_to_model(model, pdb_file):
+def assign_pdb_file_to_model(model, pdb_file, skip_checks=False):
     """
     Given a pdb file, assign it to an anchor where it fits between the 
     milestones of the anchor.
@@ -364,7 +364,15 @@ def assign_pdb_file_to_model(model, pdb_file):
     for anchor in model.anchors:
         if anchor.bulkstate:
             break
-        #traj = mdtraj.load(pdb_file)
+        
+        if not skip_checks:
+            traj = mdtraj.load(pdb_file)
+            assert traj.n_frames == 1, "More than one frame detected in PDB "\
+                f"file {pdb_file}. PDB files assigned using HIDR ought to "\
+                "have a single frame, or else problems may occur in later "\
+                "calculation stages. If you wish to proceed anyways, you may "\
+                "skip checks with the '-s' or '--skip_checks' argument."
+        
         tmp_path = tempfile.NamedTemporaryFile()
         output_file = tmp_path.name
         my_sim_openmm = mmvt_sim_openmm.create_sim_openmm(
