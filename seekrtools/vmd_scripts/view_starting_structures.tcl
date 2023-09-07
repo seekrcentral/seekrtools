@@ -5,7 +5,7 @@
 # source view_starting_structures.tcl
 # view_starting_structures [/path/to/model/directory]
 
-proc view_starting_structures {{path_to_model_dir "."}} {
+proc view_starting_structures {{path_to_model_dir "."} {rec_sel "protein"}} {
     cd $path_to_model_dir
     
     # Find the anchor directories sorted in numerical order
@@ -32,20 +32,20 @@ proc view_starting_structures {{path_to_model_dir "."}} {
     
     # Align all structures
     set all_atoms_frame_0 [atomselect $my_molecule all frame 0]
-    set protein_atoms_frame_0 [atomselect $my_molecule protein frame 0]
+    set protein_atoms_frame_0 [atomselect $my_molecule $rec_sel frame 0]
     for {set i 0} {$i < $num_anchors} {incr i} {
         set all_atoms_frame_i [atomselect $my_molecule all frame $i]
-        set protein_atoms_frame_i [atomselect $my_molecule protein frame $i]
+        set protein_atoms_frame_i [atomselect $my_molecule $rec_sel frame $i]
         $all_atoms_frame_i move [measure fit $protein_atoms_frame_i $protein_atoms_frame_0]
     }
     
     # Draw the proteins and ligands nicely
     mol delrep 0 $my_molecule
     mol representation NewCartoon
-    mol selection "protein"
+    mol selection "$rec_sel"
     mol addrep $my_molecule
     
     mol representation Licorice
-    mol selection "not protein and not water and not name 'Na+' 'Cl-' 'K+'"
+    mol selection "not $rec_sel and not water and not name 'Na+' 'Cl-' 'K+'"
     mol addrep $my_molecule
 }

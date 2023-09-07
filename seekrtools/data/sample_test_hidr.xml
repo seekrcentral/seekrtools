@@ -1,7 +1,7 @@
 <?xml version="1.0" ?>
 <!--
 To run HIDR, use command:
-python hidr.py any ~/test_hidr/model.xml -M RAMD -K 14.0
+python hidr.py any ~/test_hidr/model.xml -M SMD -p hostguest_at0.5.pdb
 -->
 <model_input class='Model_input'>
     <calculation_type>mmvt</calculation_type>
@@ -53,9 +53,9 @@ python hidr.py any ~/test_hidr/model.xml -M RAMD -K 14.0
                     <lower_milestone_radius/>
                     <upper_milestone_radius/>
                     <starting_amber_params class="Amber_params">
-                        <prmtop_filename>data/hostguest.parm7</prmtop_filename>
+                        <prmtop_filename>hostguest.parm7</prmtop_filename>
                         <box_vectors/>
-                        <pdb_coordinates_filename>data/hostguest_at0.5.pdb</pdb_coordinates_filename>
+                        <pdb_coordinates_filename></pdb_coordinates_filename>
                     </starting_amber_params>
                     <bound_state>True</bound_state>
                     <bulk_anchor>False</bulk_anchor>
@@ -64,7 +64,11 @@ python hidr.py any ~/test_hidr/model.xml -M RAMD -K 14.0
                     <radius>0.15</radius>
                     <lower_milestone_radius/>
                     <upper_milestone_radius/>
-                    <starting_amber_params/>
+                    <starting_amber_params class="Amber_params">
+                        <prmtop_filename>hostguest.parm7</prmtop_filename>
+                        <box_vectors/>
+                        <pdb_coordinates_filename></pdb_coordinates_filename>
+                    </starting_amber_params>
                     <bound_state>False</bound_state>
                     <bulk_anchor>False</bulk_anchor>
                 </input_anchor>
@@ -72,7 +76,11 @@ python hidr.py any ~/test_hidr/model.xml -M RAMD -K 14.0
                     <radius>0.25</radius>
                     <lower_milestone_radius/>
                     <upper_milestone_radius/>
-                    <starting_amber_params/>
+                    <starting_amber_params class="Amber_params">
+                        <prmtop_filename>hostguest.parm7</prmtop_filename>
+                        <box_vectors/>
+                        <pdb_coordinates_filename></pdb_coordinates_filename>
+                    </starting_amber_params>
                     <bound_state>False</bound_state>
                     <bulk_anchor>False</bulk_anchor>
                 </input_anchor>
@@ -80,7 +88,11 @@ python hidr.py any ~/test_hidr/model.xml -M RAMD -K 14.0
                     <radius>0.35</radius>
                     <lower_milestone_radius/>
                     <upper_milestone_radius/>
-                    <starting_amber_params/>
+                    <starting_amber_params class="Amber_params">
+                        <prmtop_filename>hostguest.parm7</prmtop_filename>
+                        <box_vectors/>
+                        <pdb_coordinates_filename></pdb_coordinates_filename>
+                    </starting_amber_params>
                     <bound_state>False</bound_state>
                     <bulk_anchor>False</bulk_anchor>
                 </input_anchor>
@@ -88,7 +100,11 @@ python hidr.py any ~/test_hidr/model.xml -M RAMD -K 14.0
                     <radius>0.45</radius>
                     <lower_milestone_radius/>
                     <upper_milestone_radius/>
-                    <starting_amber_params/>
+                    <starting_amber_params class="Amber_params">
+                        <prmtop_filename>hostguest.parm7</prmtop_filename>
+                        <box_vectors/>
+                        <pdb_coordinates_filename></pdb_coordinates_filename>
+                    </starting_amber_params>
                     <bound_state>False</bound_state>
                     <bulk_anchor>False</bulk_anchor>
                 </input_anchor>
@@ -96,7 +112,11 @@ python hidr.py any ~/test_hidr/model.xml -M RAMD -K 14.0
                     <radius>0.55</radius>
                     <lower_milestone_radius/>
                     <upper_milestone_radius/>
-                    <starting_amber_params/>
+                    <starting_amber_params class="Amber_params">
+                        <prmtop_filename>hostguest.parm7</prmtop_filename>
+                        <box_vectors/>
+                        <pdb_coordinates_filename></pdb_coordinates_filename>
+                    </starting_amber_params>
                     <bound_state>False</bound_state>
                     <bulk_anchor>False</bulk_anchor>
                 </input_anchor>
@@ -104,7 +124,11 @@ python hidr.py any ~/test_hidr/model.xml -M RAMD -K 14.0
                     <radius>0.65</radius>
                     <lower_milestone_radius/>
                     <upper_milestone_radius/>
-                    <starting_amber_params/>
+                    <starting_amber_params class="Amber_params">
+                        <prmtop_filename>hostguest.parm7</prmtop_filename>
+                        <box_vectors/>
+                        <pdb_coordinates_filename></pdb_coordinates_filename>
+                    </starting_amber_params>
                     <bound_state>False</bound_state>
                     <bulk_anchor>False</bulk_anchor>
                 </input_anchor>
@@ -112,7 +136,11 @@ python hidr.py any ~/test_hidr/model.xml -M RAMD -K 14.0
                     <radius>0.75</radius>
                     <lower_milestone_radius/>
                     <upper_milestone_radius/>
-                    <starting_amber_params/>
+                    <starting_amber_params class="Amber_params">
+                        <prmtop_filename>hostguest.parm7</prmtop_filename>
+                        <box_vectors/>
+                        <pdb_coordinates_filename></pdb_coordinates_filename>
+                    </starting_amber_params>
                     <bound_state>False</bound_state>
                     <bulk_anchor>False</bulk_anchor>
                 </input_anchor>
@@ -120,7 +148,11 @@ python hidr.py any ~/test_hidr/model.xml -M RAMD -K 14.0
                     <radius>0.85</radius>
                     <lower_milestone_radius/>
                     <upper_milestone_radius/>
-                    <starting_amber_params/>
+                    <starting_amber_params class="Amber_params">
+                        <prmtop_filename>hostguest.parm7</prmtop_filename>
+                        <box_vectors/>
+                        <pdb_coordinates_filename></pdb_coordinates_filename>
+                    </starting_amber_params>
                     <bound_state>False</bound_state>
                     <bulk_anchor>False</bulk_anchor>
                 </input_anchor>
@@ -128,7 +160,11 @@ python hidr.py any ~/test_hidr/model.xml -M RAMD -K 14.0
                     <radius>0.95</radius>
                     <lower_milestone_radius/>
                     <upper_milestone_radius/>
-                    <starting_amber_params/>
+                    <starting_amber_params class="Amber_params">
+                        <prmtop_filename>hostguest.parm7</prmtop_filename>
+                        <box_vectors/>
+                        <pdb_coordinates_filename></pdb_coordinates_filename>
+                    </starting_amber_params>
                     <bound_state>False</bound_state>
                     <bulk_anchor>False</bulk_anchor>
                 </input_anchor>
@@ -136,7 +172,11 @@ python hidr.py any ~/test_hidr/model.xml -M RAMD -K 14.0
                     <radius>1.05</radius>
                     <lower_milestone_radius/>
                     <upper_milestone_radius/>
-                    <starting_amber_params/>
+                    <starting_amber_params class="Amber_params">
+                        <prmtop_filename>hostguest.parm7</prmtop_filename>
+                        <box_vectors/>
+                        <pdb_coordinates_filename></pdb_coordinates_filename>
+                    </starting_amber_params>
                     <bound_state>False</bound_state>
                     <bulk_anchor>False</bulk_anchor>
                 </input_anchor>
@@ -144,7 +184,11 @@ python hidr.py any ~/test_hidr/model.xml -M RAMD -K 14.0
                     <radius>1.15</radius>
                     <lower_milestone_radius/>
                     <upper_milestone_radius/>
-                    <starting_amber_params/>
+                    <starting_amber_params class="Amber_params">
+                        <prmtop_filename>hostguest.parm7</prmtop_filename>
+                        <box_vectors/>
+                        <pdb_coordinates_filename></pdb_coordinates_filename>
+                    </starting_amber_params>
                     <bound_state>False</bound_state>
                     <bulk_anchor>False</bulk_anchor>
                 </input_anchor>
@@ -152,7 +196,11 @@ python hidr.py any ~/test_hidr/model.xml -M RAMD -K 14.0
                     <radius>1.25</radius>
                     <lower_milestone_radius/>
                     <upper_milestone_radius/>
-                    <starting_amber_params/>
+                    <starting_amber_params class="Amber_params">
+                        <prmtop_filename>hostguest.parm7</prmtop_filename>
+                        <box_vectors/>
+                        <pdb_coordinates_filename></pdb_coordinates_filename>
+                    </starting_amber_params>
                     <bound_state>False</bound_state>
                     <bulk_anchor>False</bulk_anchor>
                 </input_anchor>
@@ -160,7 +208,11 @@ python hidr.py any ~/test_hidr/model.xml -M RAMD -K 14.0
                     <radius>1.35</radius>
                     <lower_milestone_radius/>
                     <upper_milestone_radius/>
-                    <starting_amber_params/>
+                    <starting_amber_params class="Amber_params">
+                        <prmtop_filename>hostguest.parm7</prmtop_filename>
+                        <box_vectors/>
+                        <pdb_coordinates_filename></pdb_coordinates_filename>
+                    </starting_amber_params>
                     <bound_state>False</bound_state>
                     <bulk_anchor>True</bulk_anchor>
                 </input_anchor>
