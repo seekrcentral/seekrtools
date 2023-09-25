@@ -759,20 +759,332 @@ def run_RAMD_simulation(model, force_constant, source_anchor_index,
         model.anchor_rootdir, source_anchor.directory, 
         source_anchor.building_directory)
     log_file_name = os.path.join(source_directory, RAMD_LOG_FILENAME)
-    """" # TODO: remove
-    simulation = openmm_app.Simulation(topology, system, sim_openmm.integrator, sim_openmm.platform, sim_openmm.properties)
+    simulation = openmm_ramd.RAMDSimulation(
+        topology, system, sim_openmm.integrator, force_constant, lig_indices, 
+        rec_indices, ramdSteps=steps_per_RAMD_update, 
+        rMinRamd=RAMD_cutoff_distance.value_in_unit(unit.angstroms),
+        platform=sim_openmm.platform, properties=sim_openmm.properties, 
+        log_file_name=log_file_name)
+    
+    simulation.RAMD_start()
+    
     simulation.context.setPositions(positions)
-    #simulation.context.setVelocitiesToTemperature(300.0 * unit.kelvin)
-    print("box_vectors:", box_vectors.to_quantity())
-    simulation.context.setPeriodicBoxVectors(
+    
+    anchor_pdb_counters = []
+    anchor_pdb_filenames = []
+    for i, anchor in enumerate(model.anchors):
+        anchor_pdb_counters.append(0)
+        anchor_pdb_filenames.append([])
+    
+    if box_vectors is not None:
+        simulation.context.setPeriodicBoxVectors(
             *box_vectors.to_quantity())
-    #state = simulation.context.getState(getPositions = True, getVelocities = True, enforcePeriodicBox = True)
-    #print("context box vectors:", state.getPeriodicBoxVectors())
-    print("running sim")
-    simulation.step(100)
-    print("successful")
-    exit()
+    
+    sim_openmm.simulation = simulation
+    handle_reporters(model, source_anchor, sim_openmm, 
+                     trajectory_reporter_interval, 
+                     energy_reporter_interval, 
+                     traj_filename_base=RAMD_TRAJ_NAME)
+    
+    if model.using_toy():
+        tolerance = 0.0
+    else:
+        tolerance = 0.0 #-0.001
+    
+    new_com = openmm_ramd.base.get_ligand_com(system, positions, lig_indices)
+    start_time = time.time()
+    counter = 0
+    old_positions = None
+    old_anchor_index = source_anchor_index
+    found_bulk_state = False
+    destination_anchor_index = source_anchor_index
+    while counter < max_num_steps:
+        simulation.RAMD_step(steps_per_RAMD_update)
+        #old_com = new_com
+        #simulation.step(steps_per_RAMD_update)
+        state = simulation.context.getState(getPositions=True, 
+                                            enforcePeriodicBox=True)
+        positions = state.getPositions()
+        if old_positions is None:
+            old_positions = positions
+        #new_com = openmm_ramd.base.get_ligand_com(system, positions, lig_indices)
+        #com_com_distance = np.linalg.norm(old_com.value_in_unit(unit.nanometers) \
+        #                              - new_com.value_in_unit(unit.nanometers))
+        
+        #if com_com_distance*unit.nanometers < RAMD_cutoff_distance:
+        #    print("recomputing force at step:", counter)
+        #    simulation.recompute_RAMD_force()
+        
+        found_anchor = False
+        if counter % steps_per_anchor_check == 0:
+            popping_indices = []
+            for i, anchor in enumerate(model.anchors):
+                in_anchor = True
+                for milestone in anchor.milestones:
+                    cv = model.collective_variables[milestone.cv_index]
+                    # TODO fix error: chdir to model rootdir
+                    curdir = os.getcwd()
+                    os.chdir(model.anchor_rootdir)
+                    
+                    result = cv.check_openmm_context_within_boundary(
+                        simulation.context, milestone.variables, positions, 
+                        tolerance=tolerance) #tolerance=-0.001)
+                    os.chdir(curdir)
+                    if not result:
+                        in_anchor = False
+                
+                if in_anchor:
+                    assert not found_anchor, "Found system in two different "\
+                        "anchors in the same step."
+                    found_anchor = True
+                    if i in destination_anchor_indices:
+                        if i == destination_anchor_index:
+                            continue
+                        print("Entered anchor {}. step: {}".format(i, counter))
+                        destination_anchor_index = i
+                        destination_anchor = model.anchors[destination_anchor_index]
+                        
+                        if destination_anchor_index != source_anchor_index:
+                            if not model.using_toy():
+                                destination_anchor.amber_params = deepcopy(source_anchor.amber_params)
+                                if destination_anchor.amber_params is not None:
+                                    src_prmtop_filename = os.path.join(
+                                        model.anchor_rootdir, source_anchor.directory, 
+                                        source_anchor.building_directory,
+                                        source_anchor.amber_params.prmtop_filename)
+                                    dest_prmtop_filename = os.path.join(
+                                        model.anchor_rootdir, destination_anchor.directory, 
+                                        destination_anchor.building_directory,
+                                        destination_anchor.amber_params.prmtop_filename)
+                                    if os.path.exists(dest_prmtop_filename):
+                                        os.remove(dest_prmtop_filename)
+                                    copyfile(src_prmtop_filename, dest_prmtop_filename)
+                                    #destination_anchor.amber_params.box_vectors = base.Box_vectors()
+                                    #destination_anchor.amber_params.box_vectors.from_quantity(box_vectors)
+                                    
+                                destination_anchor.forcefield_params = deepcopy(source_anchor.forcefield_params)
+                                if destination_anchor.forcefield_params is not None:
+                                    raise Exception("forcefield not yet implemented for RAMD")
+                                    # TODO: more here for forcefield
+                                    
+                                destination_anchor.charmm_params = deepcopy(source_anchor.charmm_params)
+                                if destination_anchor.charmm_params is not None:
+                                    raise Exception("charmm not yet implemented for RAMD")
+                                    # TODO: more here for charmm
+                            
+                                hidr_base.change_anchor_box_vectors(
+                                    destination_anchor, box_vectors.to_quantity())
+                        
+                        var_string = hidr_base.make_var_string(destination_anchor)
+                        hidr_output_pdb_name = RAMD_NAME.format(var_string, 0)
+                        
+                        if model.using_toy():
+                            new_positions = np.array([positions.value_in_unit(unit.nanometers)])
+                            destination_anchor.starting_positions = new_positions
+                            
+                        else:
+                            output_pdb_file = os.path.join(
+                                model.anchor_rootdir, destination_anchor.directory,
+                                destination_anchor.building_directory,
+                                hidr_output_pdb_name)
+                            
+                            if not destination_anchor.bulkstate: # \
+                                #    and not os.path.exists(output_pdb_file):
+                                hidr_base.change_anchor_pdb_filename(
+                                    destination_anchor, hidr_output_pdb_name)
+                                parm = parmed.openmm.load_topology(topology, system)
+                                parm.positions = positions
+                                parm.box_vectors = box_vectors.to_quantity()
+                                print("saving preliminary PDB file:", 
+                                      output_pdb_file)
+                                parm.save(output_pdb_file, overwrite=True)
+                            
+                        popping_indices.append(destination_anchor_index)
+                        
+                        old_anchor = model.anchors[old_anchor_index]
+                        var_string = hidr_base.make_var_string(old_anchor)
+                        
+                        skipped_anchor_indices = list(range(
+                            min(old_anchor_index, destination_anchor_index)+1, 
+                            max(old_anchor_index, destination_anchor_index)))
+                        
+                        if model.using_toy():
+                            prev_positions = np.array([old_positions.value_in_unit(unit.nanometers)])
+                            old_anchor.starting_positions = prev_positions
+                            assert not traj_mode, \
+                                "Traj mode not currently allowed for toy systems."
+                            if removing_starting_from_skipped_structures:
+                                # Then remove all starting structures
+                                for skipped_anchor_index in skipped_anchor_indices:
+                                    print("removing starting structure from anchor:", skipped_anchor_index)
+                                    skipped_anchor = model.anchors[skipped_anchor_index]
+                                    skipped_anchor.starting_positions = None
+                                    
+                        else:
+                            hidr_output_pdb_name = RAMD_NAME.format(var_string, anchor_pdb_counters[old_anchor_index])
+                            hidr_base.change_anchor_pdb_filename(
+                                old_anchor, hidr_output_pdb_name)
+                            
+                            output_pdb_file = os.path.join(
+                                model.anchor_rootdir, old_anchor.directory,
+                                old_anchor.building_directory, hidr_output_pdb_name)
+                            
+                            parm = parmed.openmm.load_topology(topology, system)
+                            parm.positions = old_positions
+                            parm.box_vectors = box_vectors.to_quantity()
+                            print("saving previous anchor PDB file:", output_pdb_file)
+                            parm.save(output_pdb_file, overwrite=True)
+                            if traj_mode:
+                                anchor_pdb_counters[old_anchor_index] += 1
+                                anchor_pdb_filenames[old_anchor_index].append(output_pdb_file)
+                            else:
+                                anchor_pdb_filenames[old_anchor_index] = [output_pdb_file]
+                                
+                            if removing_starting_from_skipped_structures:
+                                # Then remove all starting structures
+                                for skipped_anchor_index in skipped_anchor_indices:
+                                    print("removing starting structure from anchor:", skipped_anchor_index)
+                                    skipped_anchor = model.anchors[skipped_anchor_index]
+                                    hidr_base.change_anchor_pdb_filename(
+                                        skipped_anchor, "")
+                        
+                        old_anchor_index = i
+                        old_positions = positions
+                    
+                    if anchor.bulkstate:
+                        found_bulk_state = True
+                    
+            #for popping_index in popping_indices:
+            #    destination_anchor_indices.remove(popping_index)
+                
+            if len(destination_anchor_indices) == 0:
+                # We've reached all destinations
+                break
+            
+            if found_bulk_state:
+                break
+            
+        counter += steps_per_RAMD_update
+    
+    total_time = time.time() - start_time
+    simulation_in_ns = counter * time_step.value_in_unit(unit.picosecond)  * 1e-3
+    total_time_in_days = total_time / (86400.0)
+    ns_per_day = simulation_in_ns / total_time_in_days
+    
+    # TODO: add a check to make sure that anchors aren't crossed in RAMD - 
+    # give warning about decreasing steps between RAMD evals, or not having 
+    # so many anchor.
+    
+    for i, anchor in enumerate(model.anchors):
+        if anchor.bulkstate:
+            continue
+        # TODO: fix hack
+        if model.using_toy():
+            if anchor.starting_positions is None:
+                print("Warning: anchor {} has no starting positions."\
+                      .format(i))
+        else:
+            if hidr_base.get_anchor_pdb_filename(anchor) == "":
+                print("Warning: anchor {} has no starting PDB structures."\
+                      .format(i))
+    
+    if traj_mode:
+        for i, anchor in enumerate(model.anchors):
+            if anchor.bulkstate or len(anchor_pdb_filenames[i]) == 0:
+                continue
+            directory = os.path.join(
+                model.anchor_rootdir, anchor.directory, 
+                anchor.building_directory)
+            #pdb_file_list = anchor_pdb_filenames[i]
+            #pdb_swarm_name = combine_pdb_files_into_traj(directory, pdb_file_list)
+            var_string = hidr_base.make_var_string(anchor)
+            pdb_swarm_name = RAMD_NAME.format(var_string, "swarm")
+            
+            os.chdir(directory)
+            
+            stride = 1
+            if len(anchor_pdb_filenames[i]) > 10:
+                stride = len(anchor_pdb_filenames[i]) // 10
+            
+            #traj = mdtraj.load(anchor_pdb_filenames[i][::-1])
+            anchor_pdb_filenames_culled = anchor_pdb_filenames[i][::-1][::stride]
+            print("anchor_pdb_filenames_culled", anchor_pdb_filenames_culled)
+            exit()
+            traj = mdtraj.load(anchor_pdb_filenames_culled)
+            traj.save_pdb(pdb_swarm_name)
+            for filename in anchor_pdb_filenames[i]:
+                os.remove(filename)
+            
+            hidr_base.change_anchor_pdb_filename(anchor, pdb_swarm_name)
+    
+    return ns_per_day
+
+def run_Metadyn_simulation(model, source_anchor_index, 
+                           destination_anchor_indices, lig_indices, rec_indices,
+                           max_num_steps=1000000,
+                           steps_per_metadyn_update=250, 
+                           steps_per_anchor_check=250,
+                           metadyn_npoints=181, metadyn_sigma=0.5, 
+                           metadyn_biasfactor=5.0, metadyn_height=1.0, 
+                           ignore_cv=None):
     """
+    Run a metadynamics  simulation 
+    until every destination anchor index has been reached. The 
+    resulting structures will be saved in each anchor
+    
+    Parameters
+    ----------
+    model : Model()
+        The model object from the source anchor.
+    
+        
+    """
+    # If True, then remove any starting structures if anchors are skipped
+    #  during Metadyn.
+    removing_starting_from_skipped_structures = True
+    assert steps_per_anchor_check % steps_per_metadyn_update == 0, \
+        "steps_per_anchor_check must be a multiple of steps_per_RAMD_update."
+    trajectory_reporter_interval = 10000
+    energy_reporter_interval = 10000
+    source_anchor = model.anchors[source_anchor_index]
+    sim_openmm = HIDR_sim_openmm()
+    system, topology, positions, box_vectors, num_frames \
+        = common_sim_openmm.create_openmm_system(sim_openmm, model, 
+                                                 source_anchor)    
+    sim_openmm.system = system
+    time_step = add_integrator(sim_openmm, model)
+    common_sim_openmm.add_platform(sim_openmm, model)
+    
+    source_directory = os.path.join(
+        model.anchor_rootdir, source_anchor.directory, 
+        source_anchor.building_directory)
+    
+    # Make Metadyn CV
+    metadyn_cvs = add_metadyn_cvs(
+        sim_openmm, model, source_anchor, 
+        cv_id_list, ignore_cv)
+    
+    meta = openmm_app.Metadynamics(
+        system, variables=metadyn_cvs, temperature=model.temperature,
+        biasFactor=metadyn_biasfactor, height=metadyn_height, 
+        frequency=steps_per_metadyn_update)
+    
+    add_simulation(sim_openmm, model, topology, positions, box_vectors, 
+                   skip_minimization=True)
+    handle_reporters(
+        model, source_anchor, sim_openmm, 
+        trajectory_reporter_interval=steps_in_window, 
+        energy_reporter_interval=energy_reporter_interval, 
+        smd_dcd_filename=smd_dcd_filename,
+        smd_dcd_interval=smd_dcd_interval)
+    
+    
+    
+    
+    
+    
+    
+    
     simulation = openmm_ramd.RAMDSimulation(
         topology, system, sim_openmm.integrator, force_constant, lig_indices, 
         rec_indices, ramdSteps=steps_per_RAMD_update, 

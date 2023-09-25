@@ -53,7 +53,7 @@ def plot_voronoi_tesselation(model, boundaries, anchor_values):
 
 def plot_potential(model, plot_dir, iteration, anchor_values,
                    trajectory_values, boundaries, title, x_coordinate_title, 
-                   y_coordinate_title):
+                   y_coordinate_title, omit_iter_label=False, dpi=100):
     fig, ax, points = plot_voronoi_tesselation(model, boundaries, anchor_values)
     min_x = boundaries[0]
     max_x = boundaries[1]
@@ -104,17 +104,18 @@ def plot_potential(model, plot_dir, iteration, anchor_values,
     points_array = np.array(points).T
     plt.plot(points_array[0], points_array[1], "o", linestyle="-", linewidth=2)
     
-    # Add iteration label in upper corner
-    time_str = "iteration: {}".format(iteration)
-    font = {"weight":"bold"}
-    plt.text(min_x+0.1, max_y-0.2, time_str, fontdict=font)
+    if not omit_iter_label:
+        # Add iteration label in upper corner
+        time_str = "iteration: {}".format(iteration)
+        font = {"weight":"bold"}
+        plt.text(min_x+0.1, max_y-0.2, time_str, fontdict=font)
     
     #plt.show()
     if not os.path.exists(plot_dir):
         os.mkdir(plot_dir)
     plot_filename = os.path.join(plot_dir, "string_{}.png".format(iteration))
     print("Saving plot to:", plot_filename)
-    plt.savefig(plot_filename)
+    plt.savefig(plot_filename, dpi=dpi)
         
     return
 
@@ -187,7 +188,8 @@ def make_boundaries(anchor_values_by_iter):
 
 
 def make_model_plot(model, plot_dir, title, x_coordinate_title, 
-                    y_coordinate_title, boundaries=None):
+                    y_coordinate_title, omit_iter_label=False, 
+                    dpi=100, boundaries=None):
     anchor_values = {}
     num_variables = len(model.anchors[0].variables)
     for alpha, anchor in enumerate(model.anchors):
@@ -199,11 +201,12 @@ def make_model_plot(model, plot_dir, title, x_coordinate_title,
     if boundaries is None:
         boundaries = make_boundaries([anchor_values])
     plot_potential(model, plot_dir, "model", anchor_values, [], boundaries, 
-                   title, x_coordinate_title, y_coordinate_title)
+                   title, x_coordinate_title, y_coordinate_title, omit_iter_label, dpi)
     return boundaries
 
 def make_plots_from_logs(model, plot_dir, log_file_glob, title, 
-                        x_coordinate_title, y_coordinate_title):
+                        x_coordinate_title, y_coordinate_title, 
+                        omit_iter_label=False, dpi=100):
     anchor_values_by_iter, trajectory_values_by_iter, max_iter \
         = parse_log_file(model, log_file_glob)
     if max_iter == 0:
@@ -216,7 +219,7 @@ def make_plots_from_logs(model, plot_dir, log_file_glob, title,
                        anchor_values_by_iter[iteration],
                        trajectory_values_by_iter[iteration],
                        boundaries, title, x_coordinate_title, 
-                       y_coordinate_title)
+                       y_coordinate_title, omit_iter_label, dpi)
     return boundaries
 
 if __name__ == "__main__":
@@ -237,6 +240,15 @@ if __name__ == "__main__":
         "-y", "--y_coordinate_title", dest="y_coordinate_title", 
         default="Y-Coordinate",
         type=str, help="The title of y-coordinate")
+    argparser.add_argument(
+        "-l", "--omit_iter_label", dest="omit_iter_label", default=False,
+        help="Whether to omit the 'iteration' label in the top corner of the plot.",
+        action="store_true")
+    argparser.add_argument(
+        "-d", "--dpi", dest="dpi", default=100, type=int,
+        help="The DPI (dots per inch) of resolution for plots.")
+        
+        
     
     args = argparser.parse_args()
     args = vars(args)
@@ -244,13 +256,16 @@ if __name__ == "__main__":
     title = args["title"]
     x_coordinate_title = args["x_coordinate_title"]
     y_coordinate_title = args["y_coordinate_title"]
+    omit_iter_label = args["omit_iter_label"]
+    dpi = args["dpi"]
     
     model = base.load_model(model_file)
     plot_dir = os.path.join(model.anchor_rootdir, PLOTS_DIRECTORY_NAME)
     log_file_glob = os.path.join(model.anchor_rootdir, STRING_LOG_GLOB)
     boundaries = make_plots_from_logs(model, plot_dir, log_file_glob, title,
-                                     x_coordinate_title, y_coordinate_title)
+                                     x_coordinate_title, y_coordinate_title,
+                                     omit_iter_label, dpi)
     make_model_plot(model, plot_dir, title, x_coordinate_title, 
-                    y_coordinate_title, boundaries)
+                    y_coordinate_title, omit_iter_label, dpi, boundaries)
     #make_current_plot(model, plot_dir, boundaries)
     
