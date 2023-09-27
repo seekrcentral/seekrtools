@@ -261,6 +261,9 @@ def hidr(model, destination, pdb_files=[], toy_coordinates=None, dry_run=False,
                 metadyn_npoints=METADYN_NPOINTS, metadyn_sigma=metadyn_sigma, 
                 metadyn_biasfactor=metadyn_biasfactor, 
                 metadyn_height=metadyn_height, ignore_cv=None)
+            # save the new model file and check the generated structures
+            print("Benchmark:", ns_per_day, "ns/day")
+            hidr_base.save_new_model(model, save_old_model=False)
             
         else:
             print("mode not allowed: {}".format(mode))
