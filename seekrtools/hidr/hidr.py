@@ -27,6 +27,9 @@ import seekrtools.hidr.hidr_simulation as hidr_simulation
 from seekrtools.hidr.hidr_base import SETTLED_FINAL_STRUCT_NAME
 from seekrtools.hidr.hidr_base import SETTLED_TRAJ_NAME
 
+METADYN_NPOINTS = 181
+kJ_per_mol = unit.kilojoules / unit.mole
+
 def catch_erroneous_destination(destination):
     """
     Catch instructions that are not valid and throw an error.
@@ -62,8 +65,10 @@ def hidr(model, destination, pdb_files=[], toy_coordinates=None, dry_run=False,
          settling_steps=0, settling_frames=1, skip_checks=False,
          force_overwrite=False, traj_mode=False, smd_dcd_interval=None,
          ligand_atom_indices=None, receptor_atom_indices=None,
-         steps_per_RAMD_update=50, steps_per_anchor_check=250,
-         RAMD_cutoff_distance=0.0025, keeping_starting=True, ignore_cv=None):
+         steps_per_algorithm_update=250, steps_per_anchor_check=250,
+         RAMD_cutoff_distance=0.0025, keeping_starting=True, ignore_cv=None,
+         metadyn_sigma=0.05*unit.nanometers, metadyn_biasfactor=10.0,
+         metadyn_height=1.0*kJ_per_mol):
     """
     Run the full HIDR calculation for a model.
     
@@ -97,8 +102,11 @@ def hidr(model, destination, pdb_files=[], toy_coordinates=None, dry_run=False,
     """
     assert catch_erroneous_destination(destination)
     
-    assert mode in ["SMD", "RAMD"], "Incorrect mode option: {}. ".format(mode)\
-        +"Available options are: 'SMD' and 'RAMD'."
+    mode = mode.lower()
+    
+    assert mode in ["smd", "ramd", "metadyn", "meta"], \
+        "Incorrect mode option: {}. ".format(mode)\
+        +"Available options are: 'SMD', 'RAMD', and 'metadyn'/'meta'."
     
     assign_pdb_or_toy_coords(model, pdb_files, toy_coordinates, skip_checks)
     
@@ -125,20 +133,21 @@ def hidr(model, destination, pdb_files=[], toy_coordinates=None, dry_run=False,
     
     # Given the destination command, generate a recipe of instructions for
     #  reaching all destination anchors
-    if mode == "SMD":
+    if mode == "smd":
         procedure = hidr_network.get_procedure(
             model, anchors_with_starting_structures, destination_list)
         estimated_smd_time = hidr_network.estimate_simulation_time(
         model, procedure, translation_velocity)
-    elif mode == "RAMD":
+    elif (mode == "ramd") or (mode in ["metadyn", "meta"]):
         #procedure = [[anchors_with_starting_structures[-1], destination_list]]
         smd_procedure = hidr_network.get_procedure(
             model, anchors_with_starting_structures, destination_list)
         starting_anchor = smd_procedure[0][0]
         #procedure = [[starting_anchor, destination_list]]
         procedure = [[starting_anchor, complete_anchor_list]]
-        estimated_smd_time = 20.0 * unit.nanoseconds
+        estimated_smd_time = 100.0 * unit.nanoseconds
         
+    
     estimated_equilibration_time = equilibration_steps \
         * hidr_simulation.get_timestep(model)
     
@@ -159,15 +168,19 @@ def hidr(model, destination, pdb_files=[], toy_coordinates=None, dry_run=False,
     for step in procedure:
         source_anchor_index = step[0]
         destination_anchor_index = step[1]
-        if mode == "SMD":
+        if mode == "smd":
             force_constant = restraint_force_constant
             
-        elif mode == "RAMD":
+        elif mode == "ramd":
             force_constant = ramd_force_magnitude
         
-        print("{} force constant is {}".format(mode, force_constant))
-        print("{} from anchor {} to anchor {}".format(
-            mode, source_anchor_index, destination_anchor_index))
+        elif mode in ["metadyn", "meta"]:
+            force_constant = None
+        
+        if force_constant is not None:
+            print("{} force constant is {}".format(mode, force_constant))
+            print("{} from anchor {} to anchor {}".format(
+                mode, source_anchor_index, destination_anchor_index))
     
     if settling_steps > 0:
         for anchor_index in settling_anchor_list:
@@ -197,7 +210,7 @@ def hidr(model, destination, pdb_files=[], toy_coordinates=None, dry_run=False,
         
     # Run the recipe of SMD instructions
     for step in procedure:
-        if mode == "SMD":
+        if mode.lower() == "smd":
             source_anchor_index = step[0]
             destination_anchor_index = step[1]
             print("running SMD from anchor {} to anchor {}".format(
@@ -210,7 +223,7 @@ def hidr(model, destination, pdb_files=[], toy_coordinates=None, dry_run=False,
             # save the new model file and check the generated structures
             hidr_base.save_new_model(model, save_old_model=False)
             
-        elif mode == "RAMD":
+        elif mode.lower() == "ramd":
             source_anchor_index = step[0]
             destination_anchor_indices = step[1]
             print("running RAMD from anchor {} to anchor {}".format(
@@ -228,17 +241,29 @@ def hidr(model, destination, pdb_files=[], toy_coordinates=None, dry_run=False,
                 model, ramd_force_magnitude, source_anchor_index, 
                 destination_anchor_indices, lig_indices, rec_indices, 
                 traj_mode=traj_mode, 
-                steps_per_RAMD_update=steps_per_RAMD_update, 
+                steps_per_RAMD_update=steps_per_algorithm_update, 
                 steps_per_anchor_check=steps_per_anchor_check,
                 RAMD_cutoff_distance_nanometers=RAMD_cutoff_distance)
             # save the new model file and check the generated structures
             print("Benchmark:", ns_per_day, "ns/day")
             hidr_base.save_new_model(model, save_old_model=False)
             
+        elif mode.lower() in ["metadyn", "meta"]:
+            source_anchor_index = step[0]
+            destination_anchor_indices = step[1]
+            print("running Metadynamics from anchor {} to anchor {}".format(
+                source_anchor_index, destination_anchor_indices))
+            ns_per_day = hidr_simulation.run_Metadyn_simulation(
+                model, source_anchor_index,
+                destination_anchor_indices=destination_anchor_indices,
+                steps_per_metadyn_update=steps_per_algorithm_update, 
+                steps_per_anchor_check=steps_per_anchor_check, 
+                metadyn_npoints=METADYN_NPOINTS, metadyn_sigma=metadyn_sigma, 
+                metadyn_biasfactor=metadyn_biasfactor, 
+                metadyn_height=metadyn_height, ignore_cv=None)
+            
         else:
             print("mode not allowed: {}".format(mode))
-    
-        
     
     if settling_steps > 0:
         for anchor_index in settling_anchor_list:
@@ -375,10 +400,11 @@ if __name__ == "__main__":
         default=None, metavar="[r1, r2, r3, ...]", help="Enter the atom "\
         "indices of the receptor molecule for RAMD simulations. Default: None.")
     argparser.add_argument(
-        "-R", "--steps_per_RAMD_update", dest="steps_per_RAMD_update", 
-        metavar="STEPS_PER_RAMD_UPDATE", type=int, default=50,
-        help="How many simulation timesteps to take in RAMD simulations "\
-        "before checking whether the forces should be recomputed. Default: 50.")
+        "-R", "--steps_per_algorithm_update", dest="steps_per_algorithm_update", 
+        metavar="STEPS_PER_ALGORITHM_UPDATE", type=int, default=250,
+        help="How many simulation timesteps to take in RAMD or Metadynamics "\
+        "simulations before checking whether the forces should be recomputed. "\
+        "Default: 250.")
     argparser.add_argument(
         "-u", "--steps_per_anchor_check", dest="steps_per_anchor_check", 
         metavar="STEPS_PER_ANCHOR_CHECK", type=int, default=250,
@@ -394,6 +420,21 @@ if __name__ == "__main__":
         "-i", "--ignore_cv", dest="ignore_cv", default=None,
         metavar="[c1, c2, ...]", help="Enter the CV indices to ignore when "\
         "making forces, also applies to sub-cvs for MMVT. Default: None. ")
+    argparser.add_argument(
+        "-w", "--metadyn_sigma", dest="metadyn_sigma", default=0.05,
+        metavar="w or [w1, w2, ...]", help="The standard deviations of the "\
+        "Gaussians added to the bias in metadynamics for each CV. Can be "\
+        "a float or a list of floats. Default: 0.05 nm. ")
+    argparser.add_argument(
+        "-b", "--metadyn_biasfactor", dest="metadyn_biasfactor",
+        type=float, default=10.0, 
+        help="The biasFactor used to scale the height of the Gaussians added "\
+        "to the bias. The CVs are sampled as if the effective temperature "\
+        "of the simulation were temperature*biasFactor. Default: 5.0.")
+    argparser.add_argument(
+        "-H", "--metadyn_height", dest="metadyn_height", type=float, 
+        default=1.0, help="The initial heights of the metadynamics Gaussians. "\
+        "Default: 1.0 kJ/mol.")
     
     args = argparser.parse_args() # parse the args into a dictionary
     args = vars(args)
@@ -419,10 +460,14 @@ if __name__ == "__main__":
     traj_mode = args["traj_mode"]
     ligand_atom_indices = args["ligand_atom_indices"]
     receptor_atom_indices = args["receptor_atom_indices"]
-    steps_per_RAMD_update = args["steps_per_RAMD_update"]
+    steps_per_algorithm_update = args["steps_per_algorithm_update"]
     steps_per_anchor_check = args["steps_per_anchor_check"]
     RAMD_cutoff_distance = args["RAMD_cutoff_distance"]
     ignore_cv = args["ignore_cv"]
+    metadyn_sigma = args["metadyn_sigma"]
+    metadyn_biasfactor = args["metadyn_biasfactor"]
+    metadyn_height = args["metadyn_height"] * kJ_per_mol
+    
     if ligand_atom_indices is None:
         assert receptor_atom_indices is None, \
             "if ligand_atom_indices is None, receptor_atom_indices must also "\
@@ -446,6 +491,8 @@ if __name__ == "__main__":
          settling_steps, settling_frames, skip_checks, force_overwrite, 
          traj_mode, ligand_atom_indices=ligand_atom_indices, 
          receptor_atom_indices=receptor_atom_indices,
-         steps_per_RAMD_update=steps_per_RAMD_update, 
+         steps_per_algorithm_update=steps_per_algorithm_update, 
          steps_per_anchor_check=steps_per_anchor_check,
-         RAMD_cutoff_distance=RAMD_cutoff_distance, ignore_cv=ignore_cv)
+         RAMD_cutoff_distance=RAMD_cutoff_distance, ignore_cv=ignore_cv,
+         metadyn_sigma=metadyn_sigma, metadyn_biasfactor=metadyn_biasfactor,
+         metadyn_height=metadyn_height)

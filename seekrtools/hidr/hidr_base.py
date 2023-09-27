@@ -30,6 +30,8 @@ EQUILIBRATED_TRAJ_NAME = "hidr_traj_equilibrated.pdb"
 SMD_NAME = "hidr_smd_at_{}.pdb"
 RAMD_NAME = "hidr_ramd_at_{}_{}.pdb"
 RAMD_TRAJ_NAME = "hidr_traj_ramd.pdb"
+METADYN_NAME = "hidr_metadyn_at_{}_{}.pdb"
+METADYN_TRAJ_NAME = "hidr_traj_metadyn.pdb"
 SETTLED_FINAL_STRUCT_NAME = "hidr_settled_at_{}.pdb"
 SETTLED_TRAJ_NAME = "hidr_traj_settled_at_{}.pdb"
 

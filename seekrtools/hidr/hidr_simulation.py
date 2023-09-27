@@ -58,6 +58,8 @@ from seekrtools.hidr.hidr_base import EQUILIBRATED_TRAJ_NAME
 from seekrtools.hidr.hidr_base import SMD_NAME
 from seekrtools.hidr.hidr_base import RAMD_NAME
 from seekrtools.hidr.hidr_base import RAMD_TRAJ_NAME
+from seekrtools.hidr.hidr_base import METADYN_NAME
+from seekrtools.hidr.hidr_base import METADYN_TRAJ_NAME
 #from seekrtools.hidr.hidr_base import SETTLED_FINAL_STRUCT_NAME
 #from seekrtools.hidr.hidr_base import SETTLED_TRAJ_NAME
 
@@ -239,6 +241,40 @@ def make_restraining_force(cv, variables_values_list):
     cv.add_groups_and_variables(myforce, variables_values_list, alias_index)
     return myforce
 
+def make_meta_force_bias(cv, min_value, max_value, bias_width, grid_width):
+    """
+    Take a Collective_variable object return an OpenMM BiasVariable() 
+    object that the plugin can use to run a metadynamics sim.
+    
+    Parameters
+    ----------
+    cv : Collective_variable()
+        A Collective_variable object which contains all the information
+        for the collective variable describing this variable. In fact,
+        the boundaries are contours of the function described by cv.
+        This variable contains information like the groups of atoms
+        involved with the CV, and the expression which describes the
+        function.
+        
+    Returns
+    -------
+    my_bias_variable : openmm.BiasVariable()
+        An OpenMM BiasVariable object used to propagate a metadynamics sim.
+    """
+    alias_index = 1 # TODO: wrong??
+    my_meta_force = cv.make_cv_force(alias_index)
+    my_meta_force.setForceGroup(1)
+    variables_names_list = cv.add_groups(my_meta_force)
+    cv.add_groups_and_variables(my_meta_force, [], alias_index)
+    
+    # Check cv type to see whether periodic should be accepted
+    
+    myforce1_bias = openmm_app.BiasVariable(
+        my_meta_force, minValue=min_value, maxValue=max_value,
+        biasWidth=bias_width, periodic=False, gridWidth=grid_width)
+    
+    return myforce1_bias
+
 def update_restraining_force(cv, variables_values_list, force, context):
     """
     Update the restraining force variables in a CV.
@@ -280,7 +316,6 @@ def add_forces(sim_openmm, model, anchor, restraint_force_constant,
                 continue
         
         cv = model.collective_variables[var_cv]
-        
         
         curdir = os.getcwd()
         os.chdir(model.anchor_rootdir)
@@ -392,6 +427,50 @@ def update_forces(sim_openmm, forces, model, anchor, restraint_force_constant,
         os.chdir(curdir)
         
     return
+
+def add_metadyn_cvs(model, bias_widths, grid_widths, ignore_cv=None):
+    """
+    
+    """
+    value_dict = {}
+    if ignore_cv is None:
+        ignore_cv = []
+        
+    meta_force_biases = []
+    for i, variable_key in enumerate(model.anchors[0].variables):
+        var_name = variable_key.split("_")[0]
+        var_cv = int(variable_key.split("_")[1])
+        
+        variable_values = []
+        cv = model.collective_variables[var_cv]
+        for anchor in model.anchors:
+            value = anchor.variables[variable_key]
+            variable_values.append(value)
+        
+        #min_value = min(variable_values)
+        min_value = 0.0
+        max_value = max(variable_values)
+        
+        curdir = os.getcwd()
+        os.chdir(model.anchor_rootdir)
+        
+        if isinstance(cv, mmvt_voronoi_cv.MMVT_Voronoi_CV):
+            var_child_cv = int(variable_key.split("_")[2])
+            if var_child_cv in ignore_cv:
+                continue
+            child_cv = cv.child_cvs[var_child_cv]
+            myforce_bias = make_meta_force_bias(
+                child_cv, min_value, max_value, bias_widths[i], grid_widths[i])
+        else:
+            if var_cv in ignore_cv:
+                continue
+            myforce_bias = make_meta_force_bias(
+                cv, min_value, max_value, bias_widths[i], grid_widths[i])
+                
+        os.chdir(curdir)
+        meta_force_biases.append(myforce_bias)
+    
+    return meta_force_biases
 
 def add_barostat(sim_openmm, model):
     """
@@ -1020,13 +1099,13 @@ def run_RAMD_simulation(model, force_constant, source_anchor_index,
     return ns_per_day
 
 def run_Metadyn_simulation(model, source_anchor_index, 
-                           destination_anchor_indices, lig_indices, rec_indices,
-                           max_num_steps=1000000,
+                           destination_anchor_indices,
+                           max_num_steps=100000000,
                            steps_per_metadyn_update=250, 
                            steps_per_anchor_check=250,
-                           metadyn_npoints=181, metadyn_sigma=0.5, 
-                           metadyn_biasfactor=5.0, metadyn_height=1.0, 
-                           ignore_cv=None):
+                           metadyn_npoints=None, metadyn_sigma=None, 
+                           metadyn_biasfactor=10.0, metadyn_height=1.0, 
+                           ignore_cv=None,):
     """
     Run a metadynamics  simulation 
     until every destination anchor index has been reached. The 
@@ -1039,14 +1118,21 @@ def run_Metadyn_simulation(model, source_anchor_index,
     
         
     """
+    print(f"Running metadyn. steps_per_metadyn_update: {steps_per_metadyn_update}")
+    print(f"steps_per_anchor_check: {steps_per_anchor_check}")
+    print(f"metadyn_biasfactor: {metadyn_biasfactor}")
+    print(f"metadyn_height: {metadyn_height}")
     # If True, then remove any starting structures if anchors are skipped
     #  during Metadyn.
+    save_structures_as_we_go = False
+    anchor_positions = {}
     removing_starting_from_skipped_structures = True
     assert steps_per_anchor_check % steps_per_metadyn_update == 0, \
         "steps_per_anchor_check must be a multiple of steps_per_RAMD_update."
     trajectory_reporter_interval = 10000
     energy_reporter_interval = 10000
     source_anchor = model.anchors[source_anchor_index]
+    #destination_anchor = model.anchors[destination_anchor_index]
     sim_openmm = HIDR_sim_openmm()
     system, topology, positions, box_vectors, num_frames \
         = common_sim_openmm.create_openmm_system(sim_openmm, model, 
@@ -1059,10 +1145,36 @@ def run_Metadyn_simulation(model, source_anchor_index,
         model.anchor_rootdir, source_anchor.directory, 
         source_anchor.building_directory)
     
+    cv_id_list = []
+    for variable_key in source_anchor.variables:
+        var_name = variable_key.split("_")[0]
+        var_cv = int(variable_key.split("_")[1])
+        cv = model.collective_variables[var_cv]
+        # the two anchors must share a common variable
+        if variable_key in source_anchor.variables:
+            if isinstance(cv, mmvt_voronoi_cv.MMVT_Voronoi_CV):
+                var_child_cv = int(variable_key.split("_")[2])
+                cv_id_list.append(var_child_cv)
+            else:
+                #start_value = cv.get_openmm_context_cv_value(None, positions, system)
+                cv_id_list.append(var_cv)
+            
     # Make Metadyn CV
-    metadyn_cvs = add_metadyn_cvs(
-        sim_openmm, model, source_anchor, 
-        cv_id_list, ignore_cv)
+    num_cvs = len(cv_id_list)
+    if metadyn_npoints is None:
+        metadyn_npoints = [181] * num_cvs
+    elif not (type(metadyn_npoints) == list):
+        metadyn_npoints = [metadyn_npoints]
+    
+    if metadyn_sigma is None:
+        metadyn_sigma = [0.5] * num_cvs
+    elif not (type(metadyn_sigma) == list):
+        metadyn_sigma = [metadyn_sigma]
+        
+    print(f"metadyn_npoints: {metadyn_npoints}")
+    print(f"metadyn_sigma: {metadyn_sigma}")
+    
+    metadyn_cvs = add_metadyn_cvs(model, metadyn_sigma, metadyn_npoints, ignore_cv)
     
     meta = openmm_app.Metadynamics(
         system, variables=metadyn_cvs, temperature=model.temperature,
@@ -1071,30 +1183,7 @@ def run_Metadyn_simulation(model, source_anchor_index,
     
     add_simulation(sim_openmm, model, topology, positions, box_vectors, 
                    skip_minimization=True)
-    handle_reporters(
-        model, source_anchor, sim_openmm, 
-        trajectory_reporter_interval=steps_in_window, 
-        energy_reporter_interval=energy_reporter_interval, 
-        smd_dcd_filename=smd_dcd_filename,
-        smd_dcd_interval=smd_dcd_interval)
-    
-    
-    
-    
-    
-    
-    
-    
-    simulation = openmm_ramd.RAMDSimulation(
-        topology, system, sim_openmm.integrator, force_constant, lig_indices, 
-        rec_indices, ramdSteps=steps_per_RAMD_update, 
-        rMinRamd=RAMD_cutoff_distance.value_in_unit(unit.angstroms),
-        platform=sim_openmm.platform, properties=sim_openmm.properties, 
-        log_file_name=log_file_name)
-    
-    simulation.RAMD_start()
-    
-    simulation.context.setPositions(positions)
+    simulation = sim_openmm.simulation
     
     anchor_pdb_counters = []
     anchor_pdb_filenames = []
@@ -1106,18 +1195,16 @@ def run_Metadyn_simulation(model, source_anchor_index,
         simulation.context.setPeriodicBoxVectors(
             *box_vectors.to_quantity())
     
-    sim_openmm.simulation = simulation
     handle_reporters(model, source_anchor, sim_openmm, 
                      trajectory_reporter_interval, 
                      energy_reporter_interval, 
-                     traj_filename_base=RAMD_TRAJ_NAME)
+                     traj_filename_base=METADYN_TRAJ_NAME)
     
     if model.using_toy():
         tolerance = 0.0
     else:
         tolerance = 0.0 #-0.001
     
-    new_com = openmm_ramd.base.get_ligand_com(system, positions, lig_indices)
     start_time = time.time()
     counter = 0
     old_positions = None
@@ -1125,21 +1212,12 @@ def run_Metadyn_simulation(model, source_anchor_index,
     found_bulk_state = False
     destination_anchor_index = source_anchor_index
     while counter < max_num_steps:
-        simulation.RAMD_step(steps_per_RAMD_update)
-        #old_com = new_com
-        #simulation.step(steps_per_RAMD_update)
+        meta.step(simulation, steps_per_anchor_check)
         state = simulation.context.getState(getPositions=True, 
                                             enforcePeriodicBox=True)
         positions = state.getPositions()
         if old_positions is None:
             old_positions = positions
-        #new_com = openmm_ramd.base.get_ligand_com(system, positions, lig_indices)
-        #com_com_distance = np.linalg.norm(old_com.value_in_unit(unit.nanometers) \
-        #                              - new_com.value_in_unit(unit.nanometers))
-        
-        #if com_com_distance*unit.nanometers < RAMD_cutoff_distance:
-        #    print("recomputing force at step:", counter)
-        #    simulation.recompute_RAMD_force()
         
         found_anchor = False
         if counter % steps_per_anchor_check == 0:
@@ -1202,7 +1280,7 @@ def run_Metadyn_simulation(model, source_anchor_index,
                                     destination_anchor, box_vectors.to_quantity())
                         
                         var_string = hidr_base.make_var_string(destination_anchor)
-                        hidr_output_pdb_name = RAMD_NAME.format(var_string, 0)
+                        hidr_output_pdb_name = METADYN_NAME.format(var_string, 0)
                         
                         if model.using_toy():
                             new_positions = np.array([positions.value_in_unit(unit.nanometers)])
@@ -1214,16 +1292,21 @@ def run_Metadyn_simulation(model, source_anchor_index,
                                 destination_anchor.building_directory,
                                 hidr_output_pdb_name)
                             
-                            if not destination_anchor.bulkstate: # \
-                                #    and not os.path.exists(output_pdb_file):
-                                hidr_base.change_anchor_pdb_filename(
-                                    destination_anchor, hidr_output_pdb_name)
-                                parm = parmed.openmm.load_topology(topology, system)
-                                parm.positions = positions
-                                parm.box_vectors = box_vectors.to_quantity()
-                                print("saving preliminary PDB file:", 
-                                      output_pdb_file)
-                                parm.save(output_pdb_file, overwrite=True)
+                            if not destination_anchor.bulkstate:
+                                if save_structures_as_we_go:
+                                    #    and not os.path.exists(output_pdb_file):
+                                    hidr_base.change_anchor_pdb_filename(
+                                        destination_anchor, hidr_output_pdb_name)
+                                    parm = parmed.openmm.load_topology(topology, system)
+                                    parm.positions = positions
+                                    parm.box_vectors = box_vectors.to_quantity()
+                                    print("saving preliminary PDB file:", 
+                                          output_pdb_file)
+                                    parm.save(output_pdb_file, overwrite=True)
+                                
+                                else:
+                                    anchor_positions[destination_anchor_index] =\
+                                        positions
                             
                         popping_indices.append(destination_anchor_index)
                         
@@ -1237,8 +1320,6 @@ def run_Metadyn_simulation(model, source_anchor_index,
                         if model.using_toy():
                             prev_positions = np.array([old_positions.value_in_unit(unit.nanometers)])
                             old_anchor.starting_positions = prev_positions
-                            assert not traj_mode, \
-                                "Traj mode not currently allowed for toy systems."
                             if removing_starting_from_skipped_structures:
                                 # Then remove all starting structures
                                 for skipped_anchor_index in skipped_anchor_indices:
@@ -1247,24 +1328,25 @@ def run_Metadyn_simulation(model, source_anchor_index,
                                     skipped_anchor.starting_positions = None
                                     
                         else:
-                            hidr_output_pdb_name = RAMD_NAME.format(var_string, anchor_pdb_counters[old_anchor_index])
-                            hidr_base.change_anchor_pdb_filename(
-                                old_anchor, hidr_output_pdb_name)
-                            
-                            output_pdb_file = os.path.join(
-                                model.anchor_rootdir, old_anchor.directory,
-                                old_anchor.building_directory, hidr_output_pdb_name)
-                            
-                            parm = parmed.openmm.load_topology(topology, system)
-                            parm.positions = old_positions
-                            parm.box_vectors = box_vectors.to_quantity()
-                            print("saving previous anchor PDB file:", output_pdb_file)
-                            parm.save(output_pdb_file, overwrite=True)
-                            if traj_mode:
-                                anchor_pdb_counters[old_anchor_index] += 1
-                                anchor_pdb_filenames[old_anchor_index].append(output_pdb_file)
-                            else:
+                            if save_structures_as_we_go:
+                                hidr_output_pdb_name = METADYN_NAME.format(var_string, anchor_pdb_counters[old_anchor_index])
+                                hidr_base.change_anchor_pdb_filename(
+                                    old_anchor, hidr_output_pdb_name)
+                                
+                                output_pdb_file = os.path.join(
+                                    model.anchor_rootdir, old_anchor.directory,
+                                    old_anchor.building_directory, hidr_output_pdb_name)
+                                
+                                parm = parmed.openmm.load_topology(topology, system)
+                                parm.positions = old_positions
+                                parm.box_vectors = box_vectors.to_quantity()
+                                print("saving previous anchor PDB file:", output_pdb_file)
+                                parm.save(output_pdb_file, overwrite=True)
                                 anchor_pdb_filenames[old_anchor_index] = [output_pdb_file]
+                            
+                            else:
+                                anchor_positions[old_anchor_index] =\
+                                        old_positions
                                 
                             if removing_starting_from_skipped_structures:
                                 # Then remove all starting structures
@@ -1290,7 +1372,7 @@ def run_Metadyn_simulation(model, source_anchor_index,
             if found_bulk_state:
                 break
             
-        counter += steps_per_RAMD_update
+        counter += steps_per_anchor_check
     
     total_time = time.time() - start_time
     simulation_in_ns = counter * time_step.value_in_unit(unit.picosecond)  * 1e-3
@@ -1300,6 +1382,26 @@ def run_Metadyn_simulation(model, source_anchor_index,
     # TODO: add a check to make sure that anchors aren't crossed in RAMD - 
     # give warning about decreasing steps between RAMD evals, or not having 
     # so many anchor.
+    
+    # Save structures
+    for anchor_index in anchor_positions:
+        anchor = model.anchors[anchor_index]
+        positions = anchor_positions[anchor_index]
+        var_string = hidr_base.make_var_string(anchor)
+        hidr_output_pdb_name = METADYN_NAME.format(var_string, 0)
+        hidr_base.change_anchor_pdb_filename(
+            anchor, hidr_output_pdb_name)
+        
+        output_pdb_file = os.path.join(
+            model.anchor_rootdir, anchor.directory,
+            anchor.building_directory, hidr_output_pdb_name)
+        
+        parm = parmed.openmm.load_topology(topology, system)
+        parm.positions = positions
+        parm.box_vectors = box_vectors.to_quantity()
+        print("saving anchor PDB file:", output_pdb_file)
+        parm.save(output_pdb_file, overwrite=True)
+        anchor_pdb_filenames[anchor_index] = [output_pdb_file]
     
     for i, anchor in enumerate(model.anchors):
         if anchor.bulkstate:
@@ -1313,34 +1415,5 @@ def run_Metadyn_simulation(model, source_anchor_index,
             if hidr_base.get_anchor_pdb_filename(anchor) == "":
                 print("Warning: anchor {} has no starting PDB structures."\
                       .format(i))
-    
-    if traj_mode:
-        for i, anchor in enumerate(model.anchors):
-            if anchor.bulkstate or len(anchor_pdb_filenames[i]) == 0:
-                continue
-            directory = os.path.join(
-                model.anchor_rootdir, anchor.directory, 
-                anchor.building_directory)
-            #pdb_file_list = anchor_pdb_filenames[i]
-            #pdb_swarm_name = combine_pdb_files_into_traj(directory, pdb_file_list)
-            var_string = hidr_base.make_var_string(anchor)
-            pdb_swarm_name = RAMD_NAME.format(var_string, "swarm")
-            
-            os.chdir(directory)
-            
-            stride = 1
-            if len(anchor_pdb_filenames[i]) > 10:
-                stride = len(anchor_pdb_filenames[i]) // 10
-            
-            #traj = mdtraj.load(anchor_pdb_filenames[i][::-1])
-            anchor_pdb_filenames_culled = anchor_pdb_filenames[i][::-1][::stride]
-            print("anchor_pdb_filenames_culled", anchor_pdb_filenames_culled)
-            exit()
-            traj = mdtraj.load(anchor_pdb_filenames_culled)
-            traj.save_pdb(pdb_swarm_name)
-            for filename in anchor_pdb_filenames[i]:
-                os.remove(filename)
-            
-            hidr_base.change_anchor_pdb_filename(anchor, pdb_swarm_name)
     
     return ns_per_day
