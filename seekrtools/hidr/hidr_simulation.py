@@ -11,6 +11,7 @@ from copy import deepcopy
 import numpy as np
 import parmed
 import mdtraj
+import matplotlib.pyplot as plt
 try:
     import openmm.app as openmm_app
     import openmm
@@ -40,6 +41,7 @@ import seekr2.modules.mmvt_cvs.mmvt_count_contacts_cv as mmvt_count_contacts_cv
 import seekr2.modules.mmvt_cvs.mmvt_external_cv as mmvt_external_cv
 import seekr2.modules.mmvt_cvs.mmvt_voronoi_cv as mmvt_voronoi_cv
 import seekr2.modules.common_sim_openmm as common_sim_openmm
+import seekr2.modules.common_analyze as common_analyze
 
 import seekrtools.hidr.hidr_base as hidr_base
 
@@ -62,6 +64,9 @@ from seekrtools.hidr.hidr_base import METADYN_NAME
 from seekrtools.hidr.hidr_base import METADYN_TRAJ_NAME
 #from seekrtools.hidr.hidr_base import SETTLED_FINAL_STRUCT_NAME
 #from seekrtools.hidr.hidr_base import SETTLED_TRAJ_NAME
+DEFAULT_METADYN_NPOINTS = 181
+DEFAULT_METADYN_SIGMA = 0.5
+kcal_per_mol = unit.kilocalories / unit.mole
 
 class HIDR_sim_openmm(common_sim_openmm.Common_sim_openmm):
     """
@@ -1125,6 +1130,7 @@ def run_Metadyn_simulation(model, source_anchor_index,
     # If True, then remove any starting structures if anchors are skipped
     #  during Metadyn.
     save_structures_as_we_go = False
+    save_plot = True
     anchor_positions = {}
     removing_starting_from_skipped_structures = True
     assert steps_per_anchor_check % steps_per_metadyn_update == 0, \
@@ -1162,12 +1168,12 @@ def run_Metadyn_simulation(model, source_anchor_index,
     # Make Metadyn CV
     num_cvs = len(cv_id_list)
     if metadyn_npoints is None:
-        metadyn_npoints = [181] * num_cvs
+        metadyn_npoints = [DEFAULT_METADYN_NPOINTS] * num_cvs
     elif not (type(metadyn_npoints) == list):
         metadyn_npoints = [metadyn_npoints]
     
     if metadyn_sigma is None:
-        metadyn_sigma = [0.5] * num_cvs
+        metadyn_sigma = [DEFAULT_METADYN_SIGMA] * num_cvs
     elif not (type(metadyn_sigma) == list):
         metadyn_sigma = [metadyn_sigma]
         
@@ -1415,5 +1421,30 @@ def run_Metadyn_simulation(model, source_anchor_index,
             if hidr_base.get_anchor_pdb_filename(anchor) == "":
                 print("Warning: anchor {} has no starting PDB structures."\
                       .format(i))
+    
+    if save_plot:
+        image_directory = common_analyze.make_image_directory(
+            model, None)
+        print(f"saving metadynamics plot to directory: {image_directory}")
+        dG = meta.getFreeEnergy().value_in_unit(kcal_per_mol)
+        anchor_indices = np.zeros(len(model.anchors), dtype=np.int8)
+        anchor_values = np.zeros(len(model.anchors), dtype=np.float64)
+        if len(model.anchors[0].variables) > 1:
+            # cannot make plots for multidimensional CVs
+            return
+        for i, anchor in enumerate(model.anchors):
+            anchor_indices[i] = anchor.index
+            anchor_values[i] = list(anchor.variables.values())[0]
+        
+        x = np.linspace(anchor_values[0], anchor_values[-1], 
+                        DEFAULT_METADYN_NPOINTS)
+        pi_fig, ax = plt.subplots()
+        plt.plot(x, dG)
+        plt.xticks(anchor_values, anchor_values, rotation=90)
+        plt.ylabel("Metadynamics \u0394G (kJ/mol)")
+        plt.xlabel("anchor value")
+        plt.title("Metadynamics Free Energy Profile")
+        plt.tight_layout()
+        pi_fig.savefig(os.path.join(image_directory, "metadynamics.png"))
     
     return ns_per_day

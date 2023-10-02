@@ -142,6 +142,9 @@ def hidr(model, destination, pdb_files=[], toy_coordinates=None, dry_run=False,
         #procedure = [[anchors_with_starting_structures[-1], destination_list]]
         smd_procedure = hidr_network.get_procedure(
             model, anchors_with_starting_structures, destination_list)
+        if len(smd_procedure) == 0:
+            print("Nothing to run. Exiting.")
+            exit()
         starting_anchor = smd_procedure[0][0]
         #procedure = [[starting_anchor, destination_list]]
         procedure = [[starting_anchor, complete_anchor_list]]
