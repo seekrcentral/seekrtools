@@ -57,7 +57,7 @@ python hidr.py any ~/test_hidr/model.xml -M SMD -p hostguest_at0.5.pdb
                         <box_vectors/>
                         <pdb_coordinates_filename></pdb_coordinates_filename>
                     </starting_amber_params>
-                    <bound_state>True</bound_state>
+                    <bound_state>False</bound_state>
                     <bulk_anchor>False</bulk_anchor>
                 </input_anchor>
                 <input_anchor class="Spherical_cv_anchor">

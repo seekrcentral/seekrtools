@@ -66,6 +66,7 @@ from seekrtools.hidr.hidr_base import METADYN_TRAJ_NAME
 #from seekrtools.hidr.hidr_base import SETTLED_TRAJ_NAME
 DEFAULT_METADYN_NPOINTS = 181
 DEFAULT_METADYN_SIGMA = 0.5
+MAX_METADYN_STEPS = 1000000000
 kcal_per_mol = unit.kilocalories / unit.mole
 
 class HIDR_sim_openmm(common_sim_openmm.Common_sim_openmm):
@@ -1105,7 +1106,7 @@ def run_RAMD_simulation(model, force_constant, source_anchor_index,
 
 def run_Metadyn_simulation(model, source_anchor_index, 
                            destination_anchor_indices,
-                           max_num_steps=100000000,
+                           max_num_steps=MAX_METADYN_STEPS,
                            steps_per_metadyn_update=250, 
                            steps_per_anchor_check=250,
                            metadyn_npoints=None, metadyn_sigma=None, 
@@ -1130,6 +1131,7 @@ def run_Metadyn_simulation(model, source_anchor_index,
     # If True, then remove any starting structures if anchors are skipped
     #  during Metadyn.
     save_structures_as_we_go = False
+    save_final_structure = False
     save_plot = True
     anchor_positions = {}
     removing_starting_from_skipped_structures = True
