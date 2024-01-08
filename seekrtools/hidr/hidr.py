@@ -12,6 +12,7 @@ import argparse
 import tempfile
 import glob
 import ast
+import shutil
 
 try:
     import openmm.unit as unit
@@ -27,7 +28,6 @@ import seekrtools.hidr.hidr_simulation as hidr_simulation
 from seekrtools.hidr.hidr_base import SETTLED_FINAL_STRUCT_NAME
 from seekrtools.hidr.hidr_base import SETTLED_TRAJ_NAME
 
-METADYN_NPOINTS = 181
 kJ_per_mol = unit.kilojoules / unit.mole
 
 def catch_erroneous_destination(destination):
@@ -121,6 +121,7 @@ def hidr(model, destination, pdb_files=[], toy_coordinates=None, dry_run=False,
     relevant_anchors_with_starting_structures = hidr_base.check_destinations(
         model, anchors_with_starting_structures, destination_list, 
         force_overwrite)
+    print("anchors_with_starting_structures:", anchors_with_starting_structures)
     settling_anchor_list = hidr_base.check_settling_anchors(
         model, complete_anchor_list, force_overwrite)
     
@@ -129,7 +130,12 @@ def hidr(model, destination, pdb_files=[], toy_coordinates=None, dry_run=False,
     if force_overwrite and os.path.exists(smd_dcd_filename):
         print("Force deletion of file:", smd_dcd_filename)
         os.remove(smd_dcd_filename)
-        
+    
+    metadyn_bias_dir = os.path.join(model.anchor_rootdir, 
+                                    hidr_simulation.METADYN_BIAS_DIR_NAME)
+    if force_overwrite and os.path.exists(metadyn_bias_dir):
+        print("Force deletion of directory:", metadyn_bias_dir)
+        shutil.rmtree(metadyn_bias_dir)
     
     # Given the destination command, generate a recipe of instructions for
     #  reaching all destination anchors
@@ -138,7 +144,7 @@ def hidr(model, destination, pdb_files=[], toy_coordinates=None, dry_run=False,
             model, anchors_with_starting_structures, destination_list)
         estimated_smd_time = hidr_network.estimate_simulation_time(
         model, procedure, translation_velocity)
-    elif (mode == "ramd") or (mode in ["metadyn", "meta"]):
+    elif (mode == "ramd") or (mode in ["metadyn", "meta", "metad"]):
         #procedure = [[anchors_with_starting_structures[-1], destination_list]]
         smd_procedure = hidr_network.get_procedure(
             model, anchors_with_starting_structures, destination_list)
@@ -177,7 +183,7 @@ def hidr(model, destination, pdb_files=[], toy_coordinates=None, dry_run=False,
         elif mode == "ramd":
             force_constant = ramd_force_magnitude
         
-        elif mode in ["metadyn", "meta"]:
+        elif mode in ["metadyn", "meta", "metad"]:
             force_constant = None
         
         if force_constant is not None:
@@ -251,7 +257,7 @@ def hidr(model, destination, pdb_files=[], toy_coordinates=None, dry_run=False,
             print("Benchmark:", ns_per_day, "ns/day")
             hidr_base.save_new_model(model, save_old_model=False)
             
-        elif mode.lower() in ["metadyn", "meta"]:
+        elif mode.lower() in ["metadyn", "meta", "metad"]:
             source_anchor_index = step[0]
             destination_anchor_indices = step[1]
             print("running Metadynamics from anchor {} to anchor {}".format(
@@ -261,9 +267,10 @@ def hidr(model, destination, pdb_files=[], toy_coordinates=None, dry_run=False,
                 destination_anchor_indices=destination_anchor_indices,
                 steps_per_metadyn_update=steps_per_algorithm_update, 
                 steps_per_anchor_check=steps_per_anchor_check, 
-                metadyn_npoints=METADYN_NPOINTS, metadyn_sigma=metadyn_sigma, 
+                metadyn_npoints=None, metadyn_sigma=metadyn_sigma, 
                 metadyn_biasfactor=metadyn_biasfactor, 
-                metadyn_height=metadyn_height, ignore_cv=None)
+                metadyn_height=metadyn_height, ignore_cv=None, 
+                anchors_with_starting_structures=anchors_with_starting_structures)
             # save the new model file and check the generated structures
             print("Benchmark:", ns_per_day, "ns/day")
             hidr_base.save_new_model(model, save_old_model=False)
@@ -316,7 +323,8 @@ if __name__ == "__main__":
         "-M", "--mode", dest="mode", default="SMD", type=str,
         metavar="MODE", help="The 'mode' or type of enhanced sampling method"\
         "to use for generating starting structures for HIDR. At this time, "\
-        "the options 'SMD' and 'RAMD' have been implemented. Default: SMD.")
+        "the options 'SMD', 'RAMD', and 'MetaD' have been implemented. "\
+        "Default: SMD.")
     
     argparser.add_argument(
         "-p", "--pdb_files", dest="pdb_files", default=[], nargs="*", type=str,
@@ -427,7 +435,7 @@ if __name__ == "__main__":
         metavar="[c1, c2, ...]", help="Enter the CV indices to ignore when "\
         "making forces, also applies to sub-cvs for MMVT. Default: None. ")
     argparser.add_argument(
-        "-w", "--metadyn_sigma", dest="metadyn_sigma", default=0.05,
+        "-w", "--metadyn_sigma", dest="metadyn_sigma", default=None,
         metavar="w or [w1, w2, ...]", help="The standard deviations of the "\
         "Gaussians added to the bias in metadynamics for each CV. Can be "\
         "a float or a list of floats. Default: 0.05 nm. ")
@@ -436,7 +444,7 @@ if __name__ == "__main__":
         type=float, default=10.0, 
         help="The biasFactor used to scale the height of the Gaussians added "\
         "to the bias. The CVs are sampled as if the effective temperature "\
-        "of the simulation were temperature*biasFactor. Default: 5.0.")
+        "of the simulation were temperature*biasFactor. Default: 10.0.")
     argparser.add_argument(
         "-H", "--metadyn_height", dest="metadyn_height", type=float, 
         default=1.0, help="The initial heights of the metadynamics Gaussians. "\

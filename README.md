@@ -30,7 +30,13 @@ is activated before executing the following steps to install Seekrtools:
 ```
 git clone https://github.com/seekrcentral/seekrtools.git
 cd seekrtools
-python setup.py install
+python -m pip install .
+```
+
+Optionally, run unit tests:
+
+```
+pytest
 ```
 
 ## Authors and Contributors

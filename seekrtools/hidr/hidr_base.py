@@ -26,14 +26,14 @@ HIDR_MODEL_GLOB = "model_pre_hidr_*.xml"
 HIDR_MODEL_BASE = "model_pre_hidr_{}.xml"
 
 EQUILIBRATED_NAME = "hidr_equilibrated.pdb"
-EQUILIBRATED_TRAJ_NAME = "hidr_traj_equilibrated.pdb"
+EQUILIBRATED_TRAJ_NAME = "hidr_traj_equilibrated.dcd"
 SMD_NAME = "hidr_smd_at_{}.pdb"
 RAMD_NAME = "hidr_ramd_at_{}_{}.pdb"
-RAMD_TRAJ_NAME = "hidr_traj_ramd.pdb"
+RAMD_TRAJ_NAME = "hidr_traj_ramd.dcd"
 METADYN_NAME = "hidr_metadyn_at_{}_{}.pdb"
-METADYN_TRAJ_NAME = "hidr_traj_metadyn.pdb"
+METADYN_TRAJ_NAME = "hidr_traj_metadyn.dcd"
 SETTLED_FINAL_STRUCT_NAME = "hidr_settled_at_{}.pdb"
-SETTLED_TRAJ_NAME = "hidr_traj_settled_at_{}.pdb"
+SETTLED_TRAJ_NAME = "hidr_traj_settled_at_{}.dcd"
 
 def find_anchors_with_starting_structure(model):
     """
@@ -168,8 +168,8 @@ def check_destinations(model, anchors_with_starting_structures,
     
     if not len(relevant_starting_anchor_indices) > 0:
         print("There is not at least one destination anchor that is "\
-              "immediately adjacent to an anchor with a starting structure."\
-              "SMD will not run.")
+              "immediately adjacent to an anchor with a starting structure. "\
+              "HIDR will not run.")
     
     if force_overwrite:
         return relevant_starting_anchor_indices

@@ -8,6 +8,7 @@ import time
 from shutil import copyfile
 from copy import deepcopy
 
+from icecream import ic
 import numpy as np
 import parmed
 import mdtraj
@@ -67,6 +68,7 @@ from seekrtools.hidr.hidr_base import METADYN_TRAJ_NAME
 DEFAULT_METADYN_NPOINTS = 181
 DEFAULT_METADYN_SIGMA = 0.5
 MAX_METADYN_STEPS = 1000000000
+METADYN_BIAS_DIR_NAME = "metadyn_bias_dir"
 kcal_per_mol = unit.kilocalories / unit.mole
 
 class HIDR_sim_openmm(common_sim_openmm.Common_sim_openmm):
@@ -91,7 +93,7 @@ class HIDR_sim_openmm(common_sim_openmm.Common_sim_openmm):
         self.system = None
         self.integrator = None
         self.simulation = None
-        self.traj_reporter = openmm_app.PDBReporter
+        self.traj_reporter = openmm_app.DCDReporter
         self.energy_reporter = openmm_app.StateDataReporter
         self.forces = None
         return
@@ -274,6 +276,8 @@ def make_meta_force_bias(cv, min_value, max_value, bias_width, grid_width):
     cv.add_groups_and_variables(my_meta_force, [], alias_index)
     
     # Check cv type to see whether periodic should be accepted
+    
+    ic(my_meta_force)
     
     myforce1_bias = openmm_app.BiasVariable(
         my_meta_force, minValue=min_value, maxValue=max_value,
@@ -1111,7 +1115,8 @@ def run_Metadyn_simulation(model, source_anchor_index,
                            steps_per_anchor_check=250,
                            metadyn_npoints=None, metadyn_sigma=None, 
                            metadyn_biasfactor=10.0, metadyn_height=1.0, 
-                           ignore_cv=None,):
+                           ignore_cv=None, 
+                           anchors_with_starting_structures=None):
     """
     Run a metadynamics  simulation 
     until every destination anchor index has been reached. The 
@@ -1131,10 +1136,20 @@ def run_Metadyn_simulation(model, source_anchor_index,
     # If True, then remove any starting structures if anchors are skipped
     #  during Metadyn.
     save_structures_as_we_go = False
-    save_final_structure = False
+    save_final_structure = True # Vs. saving the first structure when a new
+    # anchor is encountered.
     save_plot = True
     anchor_positions = {}
-    removing_starting_from_skipped_structures = True
+    if anchors_with_starting_structures is None:
+        visited_anchors = set()
+    else:
+        visited_anchors = set(anchors_with_starting_structures)
+        
+    if save_final_structure:
+        removing_starting_from_skipped_structures = True
+    else:
+        removing_starting_from_skipped_structures = False
+        
     assert steps_per_anchor_check % steps_per_metadyn_update == 0, \
         "steps_per_anchor_check must be a multiple of steps_per_RAMD_update."
     trajectory_reporter_interval = 10000
@@ -1181,13 +1196,22 @@ def run_Metadyn_simulation(model, source_anchor_index,
         
     print(f"metadyn_npoints: {metadyn_npoints}")
     print(f"metadyn_sigma: {metadyn_sigma}")
+    if save_final_structure:
+        print("Saving structures from final time anchor is entered.")
+    else:
+        print("Saving structures from first time anchor is entered.")
     
     metadyn_cvs = add_metadyn_cvs(model, metadyn_sigma, metadyn_npoints, ignore_cv)
+    
+    metadyn_bias_dir = os.path.join(model.anchor_rootdir, METADYN_BIAS_DIR_NAME)
+    if not os.path.exists(metadyn_bias_dir):
+        os.mkdir(metadyn_bias_dir)
     
     meta = openmm_app.Metadynamics(
         system, variables=metadyn_cvs, temperature=model.temperature,
         biasFactor=metadyn_biasfactor, height=metadyn_height, 
-        frequency=steps_per_metadyn_update)
+        frequency=steps_per_metadyn_update, 
+        saveFrequency=steps_per_metadyn_update, biasDir=metadyn_bias_dir)
     
     add_simulation(sim_openmm, model, topology, positions, box_vectors, 
                    skip_minimization=True)
@@ -1256,113 +1280,124 @@ def run_Metadyn_simulation(model, source_anchor_index,
                         destination_anchor_index = i
                         destination_anchor = model.anchors[destination_anchor_index]
                         
-                        if destination_anchor_index != source_anchor_index:
-                            if not model.using_toy():
-                                destination_anchor.amber_params = deepcopy(source_anchor.amber_params)
-                                if destination_anchor.amber_params is not None:
-                                    src_prmtop_filename = os.path.join(
-                                        model.anchor_rootdir, source_anchor.directory, 
-                                        source_anchor.building_directory,
-                                        source_anchor.amber_params.prmtop_filename)
-                                    dest_prmtop_filename = os.path.join(
-                                        model.anchor_rootdir, destination_anchor.directory, 
-                                        destination_anchor.building_directory,
-                                        destination_anchor.amber_params.prmtop_filename)
-                                    if os.path.exists(dest_prmtop_filename):
-                                        os.remove(dest_prmtop_filename)
-                                    copyfile(src_prmtop_filename, dest_prmtop_filename)
-                                    #destination_anchor.amber_params.box_vectors = base.Box_vectors()
-                                    #destination_anchor.amber_params.box_vectors.from_quantity(box_vectors)
-                                    
-                                destination_anchor.forcefield_params = deepcopy(source_anchor.forcefield_params)
-                                if destination_anchor.forcefield_params is not None:
-                                    raise Exception("forcefield not yet implemented for RAMD")
-                                    # TODO: more here for forcefield
-                                    
-                                destination_anchor.charmm_params = deepcopy(source_anchor.charmm_params)
-                                if destination_anchor.charmm_params is not None:
-                                    raise Exception("charmm not yet implemented for RAMD")
-                                    # TODO: more here for charmm
-                            
-                                hidr_base.change_anchor_box_vectors(
-                                    destination_anchor, box_vectors.to_quantity())
-                        
-                        var_string = hidr_base.make_var_string(destination_anchor)
-                        hidr_output_pdb_name = METADYN_NAME.format(var_string, 0)
-                        
-                        if model.using_toy():
-                            new_positions = np.array([positions.value_in_unit(unit.nanometers)])
-                            destination_anchor.starting_positions = new_positions
-                            
-                        else:
-                            output_pdb_file = os.path.join(
-                                model.anchor_rootdir, destination_anchor.directory,
-                                destination_anchor.building_directory,
-                                hidr_output_pdb_name)
-                            
-                            if not destination_anchor.bulkstate:
-                                if save_structures_as_we_go:
-                                    #    and not os.path.exists(output_pdb_file):
-                                    hidr_base.change_anchor_pdb_filename(
-                                        destination_anchor, hidr_output_pdb_name)
-                                    parm = parmed.openmm.load_topology(topology, system)
-                                    parm.positions = positions
-                                    parm.box_vectors = box_vectors.to_quantity()
-                                    print("saving preliminary PDB file:", 
-                                          output_pdb_file)
-                                    parm.save(output_pdb_file, overwrite=True)
+                        if save_final_structure or not (destination_anchor_index in visited_anchors):
+                            if destination_anchor_index != source_anchor_index:
+                                if not model.using_toy():
+                                    destination_anchor.amber_params = deepcopy(source_anchor.amber_params)
+                                    if destination_anchor.amber_params is not None:
+                                        src_prmtop_filename = os.path.join(
+                                            model.anchor_rootdir, source_anchor.directory, 
+                                            source_anchor.building_directory,
+                                            source_anchor.amber_params.prmtop_filename)
+                                        dest_prmtop_filename = os.path.join(
+                                            model.anchor_rootdir, destination_anchor.directory, 
+                                            destination_anchor.building_directory,
+                                            destination_anchor.amber_params.prmtop_filename)
+                                        if os.path.exists(dest_prmtop_filename):
+                                            os.remove(dest_prmtop_filename)
+                                        copyfile(src_prmtop_filename, dest_prmtop_filename)
+                                        #destination_anchor.amber_params.box_vectors = base.Box_vectors()
+                                        #destination_anchor.amber_params.box_vectors.from_quantity(box_vectors)
+                                        
+                                    destination_anchor.forcefield_params = deepcopy(source_anchor.forcefield_params)
+                                    if destination_anchor.forcefield_params is not None:
+                                        raise Exception("forcefield not yet implemented for RAMD")
+                                        # TODO: more here for forcefield
+                                        
+                                    destination_anchor.charmm_params = deepcopy(source_anchor.charmm_params)
+                                    if destination_anchor.charmm_params is not None:
+                                        raise Exception("charmm not yet implemented for RAMD")
+                                        # TODO: more here for charmm
                                 
-                                else:
-                                    anchor_positions[destination_anchor_index] =\
-                                        positions
+                                    hidr_base.change_anchor_box_vectors(
+                                        destination_anchor, box_vectors.to_quantity())
                             
-                        popping_indices.append(destination_anchor_index)
-                        
+                            var_string = hidr_base.make_var_string(destination_anchor)
+                            hidr_output_pdb_name = METADYN_NAME.format(var_string, 0)
+                            
+                            if model.using_toy():
+                                new_positions = np.array([positions.value_in_unit(unit.nanometers)])
+                                destination_anchor.starting_positions = new_positions
+                                
+                            else:
+                                output_pdb_file = os.path.join(
+                                    model.anchor_rootdir, destination_anchor.directory,
+                                    destination_anchor.building_directory,
+                                    hidr_output_pdb_name)
+                                
+                                if not destination_anchor.bulkstate:
+                                    if save_structures_as_we_go:
+                                        #    and not os.path.exists(output_pdb_file):
+                                        hidr_base.change_anchor_pdb_filename(
+                                            destination_anchor, hidr_output_pdb_name)
+                                        parm = parmed.openmm.load_topology(topology, system)
+                                        parm.positions = positions
+                                        parm.box_vectors = box_vectors.to_quantity()
+                                        print("saving preliminary PDB file:", 
+                                              output_pdb_file)
+                                        parm.save(output_pdb_file, overwrite=True)
+                                    
+                                    else:
+                                        anchor_positions[destination_anchor_index] =\
+                                            positions
+                                            
+                            if save_structures_as_we_go:
+                                hidr_base.save_new_model(model, save_old_model=False)
+                                
+                            visited_anchors.add(destination_anchor_index)
+                            
+                            popping_indices.append(destination_anchor_index)
+                            
                         old_anchor = model.anchors[old_anchor_index]
                         var_string = hidr_base.make_var_string(old_anchor)
                         
                         skipped_anchor_indices = list(range(
                             min(old_anchor_index, destination_anchor_index)+1, 
                             max(old_anchor_index, destination_anchor_index)))
-                        
-                        if model.using_toy():
-                            prev_positions = np.array([old_positions.value_in_unit(unit.nanometers)])
-                            old_anchor.starting_positions = prev_positions
-                            if removing_starting_from_skipped_structures:
-                                # Then remove all starting structures
-                                for skipped_anchor_index in skipped_anchor_indices:
-                                    print("removing starting structure from anchor:", skipped_anchor_index)
-                                    skipped_anchor = model.anchors[skipped_anchor_index]
-                                    skipped_anchor.starting_positions = None
-                                    
-                        else:
-                            if save_structures_as_we_go:
-                                hidr_output_pdb_name = METADYN_NAME.format(var_string, anchor_pdb_counters[old_anchor_index])
-                                hidr_base.change_anchor_pdb_filename(
-                                    old_anchor, hidr_output_pdb_name)
-                                
-                                output_pdb_file = os.path.join(
-                                    model.anchor_rootdir, old_anchor.directory,
-                                    old_anchor.building_directory, hidr_output_pdb_name)
-                                
-                                parm = parmed.openmm.load_topology(topology, system)
-                                parm.positions = old_positions
-                                parm.box_vectors = box_vectors.to_quantity()
-                                print("saving previous anchor PDB file:", output_pdb_file)
-                                parm.save(output_pdb_file, overwrite=True)
-                                anchor_pdb_filenames[old_anchor_index] = [output_pdb_file]
-                            
+                    
+                        if save_final_structure or not (old_anchor_index in visited_anchors):
+                            if model.using_toy():
+                                prev_positions = np.array([old_positions.value_in_unit(unit.nanometers)])
+                                old_anchor.starting_positions = prev_positions
+                                if removing_starting_from_skipped_structures:
+                                    # Then remove all starting structures
+                                    for skipped_anchor_index in skipped_anchor_indices:
+                                        print("removing starting structure from anchor:", skipped_anchor_index)
+                                        skipped_anchor = model.anchors[skipped_anchor_index]
+                                        skipped_anchor.starting_positions = None
+                                        
                             else:
-                                anchor_positions[old_anchor_index] =\
-                                        old_positions
-                                
-                            if removing_starting_from_skipped_structures:
-                                # Then remove all starting structures
-                                for skipped_anchor_index in skipped_anchor_indices:
-                                    print("removing starting structure from anchor:", skipped_anchor_index)
-                                    skipped_anchor = model.anchors[skipped_anchor_index]
+                                if save_structures_as_we_go:
+                                    hidr_output_pdb_name = METADYN_NAME.format(var_string, anchor_pdb_counters[old_anchor_index])
                                     hidr_base.change_anchor_pdb_filename(
-                                        skipped_anchor, "")
+                                        old_anchor, hidr_output_pdb_name)
+                                    output_pdb_file = os.path.join(
+                                        model.anchor_rootdir, old_anchor.directory,
+                                        old_anchor.building_directory, hidr_output_pdb_name)
+                                    
+                                    parm = parmed.openmm.load_topology(topology, system)
+                                    parm.positions = old_positions
+                                    parm.box_vectors = box_vectors.to_quantity()
+                                    print("saving previous anchor PDB file:", output_pdb_file)
+                                    parm.save(output_pdb_file, overwrite=True)
+                                    anchor_pdb_filenames[old_anchor_index] = [output_pdb_file]
+                                
+                                else:
+                                    anchor_positions[old_anchor_index] =\
+                                            old_positions
+                                
+                                if removing_starting_from_skipped_structures:
+                                    # Then remove all starting structures
+                                    for skipped_anchor_index in skipped_anchor_indices:
+                                        print("removing starting structure from anchor:", skipped_anchor_index)
+                                        skipped_anchor = model.anchors[skipped_anchor_index]
+                                        hidr_base.change_anchor_pdb_filename(
+                                            skipped_anchor, "")
+                                        
+                            if save_structures_as_we_go:
+                                hidr_base.save_new_model(model, save_old_model=False)
+                        
+                        visited_anchors.add(old_anchor_index)
                         
                         old_anchor_index = i
                         old_positions = positions
@@ -1387,29 +1422,26 @@ def run_Metadyn_simulation(model, source_anchor_index,
     total_time_in_days = total_time / (86400.0)
     ns_per_day = simulation_in_ns / total_time_in_days
     
-    # TODO: add a check to make sure that anchors aren't crossed in RAMD - 
-    # give warning about decreasing steps between RAMD evals, or not having 
-    # so many anchor.
-    
     # Save structures
-    for anchor_index in anchor_positions:
-        anchor = model.anchors[anchor_index]
-        positions = anchor_positions[anchor_index]
-        var_string = hidr_base.make_var_string(anchor)
-        hidr_output_pdb_name = METADYN_NAME.format(var_string, 0)
-        hidr_base.change_anchor_pdb_filename(
-            anchor, hidr_output_pdb_name)
-        
-        output_pdb_file = os.path.join(
-            model.anchor_rootdir, anchor.directory,
-            anchor.building_directory, hidr_output_pdb_name)
-        
-        parm = parmed.openmm.load_topology(topology, system)
-        parm.positions = positions
-        parm.box_vectors = box_vectors.to_quantity()
-        print("saving anchor PDB file:", output_pdb_file)
-        parm.save(output_pdb_file, overwrite=True)
-        anchor_pdb_filenames[anchor_index] = [output_pdb_file]
+    if not save_structures_as_we_go:
+        for anchor_index in anchor_positions:
+            anchor = model.anchors[anchor_index]
+            positions = anchor_positions[anchor_index]
+            var_string = hidr_base.make_var_string(anchor)
+            hidr_output_pdb_name = METADYN_NAME.format(var_string, 0)
+            hidr_base.change_anchor_pdb_filename(
+                anchor, hidr_output_pdb_name)
+            
+            output_pdb_file = os.path.join(
+                model.anchor_rootdir, anchor.directory,
+                anchor.building_directory, hidr_output_pdb_name)
+            
+            parm = parmed.openmm.load_topology(topology, system)
+            parm.positions = positions
+            parm.box_vectors = box_vectors.to_quantity()
+            print("saving anchor PDB file:", output_pdb_file)
+            parm.save(output_pdb_file, overwrite=True)
+            anchor_pdb_filenames[anchor_index] = [output_pdb_file]
     
     for i, anchor in enumerate(model.anchors):
         if anchor.bulkstate:
