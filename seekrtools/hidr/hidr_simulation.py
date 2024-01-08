@@ -8,7 +8,6 @@ import time
 from shutil import copyfile
 from copy import deepcopy
 
-from icecream import ic
 import numpy as np
 import parmed
 import mdtraj
@@ -276,9 +275,7 @@ def make_meta_force_bias(cv, min_value, max_value, bias_width, grid_width):
     cv.add_groups_and_variables(my_meta_force, [], alias_index)
     
     # Check cv type to see whether periodic should be accepted
-    
-    ic(my_meta_force)
-    
+        
     myforce1_bias = openmm_app.BiasVariable(
         my_meta_force, minValue=min_value, maxValue=max_value,
         biasWidth=bias_width, periodic=False, gridWidth=grid_width)
