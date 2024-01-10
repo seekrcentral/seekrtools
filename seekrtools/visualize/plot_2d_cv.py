@@ -5,6 +5,8 @@ A base module for plotting 2D CVs using the Voronoi tesselation anchor.
 import os
 import re
 import argparse
+# DO NOT REMOVE: needed for toy plots
+from math import exp
 
 import numpy as np
 from scipy.spatial import Voronoi, voronoi_plot_2d
@@ -267,13 +269,13 @@ def find_milestone_points(model, vor, boundaries):
             avg_point = [avg_point_x, avg_point_y]
             milestone_points[milestone_index] = avg_point
         else:
-            #adj_point1 = vor.points[anchor1_index]
-            #adj_point2 = vor.points[anchor2_index]
-            #avg_point_x = 0.5 * (adj_point1[0] + adj_point2[0])
-            #avg_point_y = 0.5 * (adj_point1[1] + adj_point2[1])
-            #avg_point = [avg_point_x, avg_point_y]
-            vertex1_index = ridge_vertex_pair[0]
-            avg_point = vor.vertices[vertex1_index]
+            adj_point1 = vor.points[anchor1_index]
+            adj_point2 = vor.points[anchor2_index]
+            avg_point_x = 0.5 * (adj_point1[0] + adj_point2[0])
+            avg_point_y = 0.5 * (adj_point1[1] + adj_point2[1])
+            avg_point = [avg_point_x, avg_point_y]
+            #vertex1_index = ridge_vertex_pair[0]
+            #avg_point = vor.vertices[vertex1_index]
             milestone_points[milestone_index] = avg_point
         
     return milestone_points
@@ -432,7 +434,7 @@ def plot_anchors(model, plot_dir, iteration, trajectory_values, boundaries,
         edge_dict_nonzero = {}
         edge_label_values = {}
         for (key, value) in edge_dictionary.items():
-            if value > 0.0:
+            if value > 1e-9:
                 edge_dict_nonzero[key] = value
                 if isinstance(value, float):
                     edge_label_values[key] = f"{value:.1E}"
@@ -542,7 +544,7 @@ def plot_milestones(model, plot_dir, iteration, boundaries,
         edge_dict_nonzero = {}
         edge_label_values = {}
         for (key, value) in edge_dictionary.items():
-            if value > 0.0:
+            if value > 1e-9:
                 edge_dict_nonzero[key] = value
                 edge_label_values[key] = f"{value:.1E}"
                 

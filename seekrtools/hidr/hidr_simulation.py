@@ -65,7 +65,7 @@ from seekrtools.hidr.hidr_base import METADYN_TRAJ_NAME
 #from seekrtools.hidr.hidr_base import SETTLED_FINAL_STRUCT_NAME
 #from seekrtools.hidr.hidr_base import SETTLED_TRAJ_NAME
 DEFAULT_METADYN_NPOINTS = 181
-DEFAULT_METADYN_SIGMA = 0.5
+DEFAULT_METADYN_SIGMA = 0.05
 MAX_METADYN_STEPS = 1000000000
 METADYN_BIAS_DIR_NAME = "metadyn_bias_dir"
 kcal_per_mol = unit.kilocalories / unit.mole

@@ -80,7 +80,7 @@ def make_analyze_plots(model, analysis, plot_dir=None,
                  "Milestone $N_{i,j}$", x_coordinate_title, y_coordinate_title, 
                  omit_iter_label, dpi, base_name+"_milestones_N_ij", 
                  draw_string, fill_values=None, 
-                 edge_dictionary=analysis.main_data_sample.N_ij, edge_labels=True)
+                 edge_dictionary=analysis.main_data_sample.N_ij_unmodified, edge_labels=True)
     
     return boundaries
 
