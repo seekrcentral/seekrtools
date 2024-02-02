@@ -476,8 +476,10 @@ def plot_anchors(model, plot_dir, iteration, trajectory_values, boundaries,
                        / max_log_edge_value)
             widths_dict[key] = width
         
-        edge_weights = [widths_dict[(u,v)]
-                         for u,v in G.edges() if edge_dict_nonzero[(u,v)] > 0]
+        edge_weights = []
+        for edge in edge_list:
+            key = (edge[0], edge[1])
+            edge_weights.append(widths_dict[key])
         
         nx.draw_networkx_edges(
             G, pos, ax=ax, arrows=True, edgelist=edge_list,
@@ -575,8 +577,10 @@ def plot_milestones(model, plot_dir, iteration, boundaries,
                        / max_log_edge_value)
             widths_dict[key] = width
         
-        edge_weights = [widths_dict[(u,v)]
-                         for u,v in G.edges() if edge_dict_nonzero[(u,v)] > 0]
+        edge_weights = []
+        for edge in edge_list:
+            key = (edge[0], edge[1])
+            edge_weights.append(widths_dict[key])
         
         nx.draw_networkx_edges(
             G, pos, ax=ax, arrows=True, edgelist=edge_list, node_size=0.5*NODE_SIZE,
