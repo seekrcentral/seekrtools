@@ -277,7 +277,7 @@ def find_milestone_points(model, vor, boundaries):
             #vertex1_index = ridge_vertex_pair[0]
             #avg_point = vor.vertices[vertex1_index]
             milestone_points[milestone_index] = avg_point
-        
+    
     return milestone_points
 
 def find_anchor_points(model):
@@ -527,7 +527,8 @@ def plot_milestones(model, plot_dir, iteration, boundaries,
     
     pos = milestone_points
     G = nx.DiGraph(directed=True)
-    G.add_nodes_from(list(range(model.num_milestones)))
+    milestone_labels = sorted(milestone_points.keys())
+    G.add_nodes_from(milestone_labels)
     if fill_values is None:
         node_color = "grey"
     else:
@@ -537,6 +538,11 @@ def plot_milestones(model, plot_dir, iteration, boundaries,
         node_color = []
         for i in range(model.num_milestones):
             node_color.append(rainbow(fill_values_normalized[i]))
+    
+        norm = matplotlib.colors.Normalize(np.min(fill_values), np.max(fill_values))
+        mappable = matplotlib.cm.ScalarMappable(norm=norm, cmap=rainbow)
+        cbar = plt.colorbar(mappable, ax=ax)
+        cbar.set_label("Energy (kcal/mol)")
     
     nx.draw_networkx_nodes(G, pos, ax=ax, node_size=NODE_SIZE, node_color=node_color)
     nx.draw_networkx_labels(G, pos, ax=ax, font_size=4, font_color="black")
@@ -607,12 +613,7 @@ def plot_milestones(model, plot_dir, iteration, boundaries,
         
     return
 
-def make_model_plots(model, plot_dir=None,
-                    x_coordinate_title="X-Coordinate", 
-                    y_coordinate_title="Y-Coordinate", omit_iter_label=False, 
-                    dpi=100, boundaries=None, traj_values=None, base_name="vt",
-                    draw_string=False, anchor_fill_values=None, 
-                    milestone_fill_values=None):
+def auto_boundary_by_anchor_values(model, boundaries=None, traj_values=None):
     anchor_values = find_anchor_points(model)
     if boundaries is None:
         #point_values = [anchor_values]
@@ -622,6 +623,16 @@ def make_model_plots(model, plot_dir=None,
         else:
             point_values += traj_values[0]
         boundaries = make_boundaries(point_values)
+    return boundaries, traj_values, point_values
+
+def make_model_plots(model, plot_dir=None,
+                    x_coordinate_title="X-Coordinate", 
+                    y_coordinate_title="Y-Coordinate", omit_iter_label=False, 
+                    dpi=100, boundaries=None, traj_values=None, base_name="vt",
+                    draw_string=False, anchor_fill_values=None, 
+                    milestone_fill_values=None):
+    boundaries, traj_values, point_values = auto_boundary_by_anchor_values(
+        model, boundaries, traj_values)
     plot_anchors(
         model, plot_dir, None, traj_values, boundaries, 
         "Anchor Voronoi Tesselation", x_coordinate_title, y_coordinate_title, omit_iter_label, dpi, 

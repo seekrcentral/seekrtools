@@ -43,12 +43,15 @@ def make_analyze_plots(model, analysis, plot_dir=None,
     
     log_times = []
     min_time = 1.0 / max(analysis.main_data_sample.k_alpha)
-    for k_alpha in analysis.main_data_sample.k_alpha:
-        if k_alpha > 0.0:
-            log_times.append(np.log10(1.0 / k_alpha))
-        else:
+    for alpha, anchor in enumerate(model.anchors):
+        if anchor.bulkstate:
             log_times.append(min_time)
-    log_times.append(min_time)
+        else:
+            k_alpha = analysis.main_data_sample.k_alpha[alpha]
+            if k_alpha > 0.0:
+                log_times.append(np.log10(1.0 / k_alpha))
+            else:
+                log_times.append(min_time)
     
     plot_2d_cv.plot_anchors(
         model, plot_dir, None, traj_values, boundaries, 

@@ -865,6 +865,9 @@ def run_RAMD_simulation(model, force_constant, source_anchor_index,
     if box_vectors is not None:
         simulation.context.setPeriodicBoxVectors(
             *box_vectors.to_quantity())
+        enforcePeriodicBox = True
+    else:
+        enforcePeriodicBox = False
     
     sim_openmm.simulation = simulation
     handle_reporters(model, source_anchor, sim_openmm, 
@@ -888,8 +891,8 @@ def run_RAMD_simulation(model, force_constant, source_anchor_index,
         simulation.RAMD_step(steps_per_RAMD_update)
         #old_com = new_com
         #simulation.step(steps_per_RAMD_update)
-        state = simulation.context.getState(getPositions=True, 
-                                            enforcePeriodicBox=True)
+        state = simulation.context.getState(
+            getPositions=True, enforcePeriodicBox=enforcePeriodicBox)
         positions = state.getPositions()
         if old_positions is None:
             old_positions = positions
@@ -1142,10 +1145,11 @@ def run_Metadyn_simulation(model, source_anchor_index,
     else:
         visited_anchors = set(anchors_with_starting_structures)
         
-    if save_final_structure:
-        removing_starting_from_skipped_structures = True
-    else:
-        removing_starting_from_skipped_structures = False
+    #if save_final_structure:
+    #    removing_starting_from_skipped_structures = True
+    #else:
+    #    removing_starting_from_skipped_structures = False
+    removing_starting_from_skipped_structures = False
         
     assert steps_per_anchor_check % steps_per_metadyn_update == 0, \
         "steps_per_anchor_check must be a multiple of steps_per_RAMD_update."
@@ -1154,7 +1158,7 @@ def run_Metadyn_simulation(model, source_anchor_index,
     source_anchor = model.anchors[source_anchor_index]
     #destination_anchor = model.anchors[destination_anchor_index]
     sim_openmm = HIDR_sim_openmm()
-    system, topology, positions, box_vectors, num_frames \
+    system, topology, start_positions, box_vectors, num_frames \
         = common_sim_openmm.create_openmm_system(sim_openmm, model, 
                                                  source_anchor)    
     sim_openmm.system = system
@@ -1210,7 +1214,7 @@ def run_Metadyn_simulation(model, source_anchor_index,
         frequency=steps_per_metadyn_update, 
         saveFrequency=steps_per_metadyn_update, biasDir=metadyn_bias_dir)
     
-    add_simulation(sim_openmm, model, topology, positions, box_vectors, 
+    add_simulation(sim_openmm, model, topology, start_positions, box_vectors, 
                    skip_minimization=True)
     simulation = sim_openmm.simulation
     
@@ -1223,6 +1227,9 @@ def run_Metadyn_simulation(model, source_anchor_index,
     if box_vectors is not None:
         simulation.context.setPeriodicBoxVectors(
             *box_vectors.to_quantity())
+        enforcePeriodicBox = True
+    else:
+        enforcePeriodicBox = False
     
     handle_reporters(model, source_anchor, sim_openmm, 
                      trajectory_reporter_interval, 
@@ -1240,10 +1247,11 @@ def run_Metadyn_simulation(model, source_anchor_index,
     old_anchor_index = source_anchor_index
     found_bulk_state = False
     destination_anchor_index = source_anchor_index
+    anchors_without_structures = deepcopy(destination_anchor_indices)
     while counter < max_num_steps:
         meta.step(simulation, steps_per_anchor_check)
-        state = simulation.context.getState(getPositions=True, 
-                                            enforcePeriodicBox=True)
+        state = simulation.context.getState(
+            getPositions=True, enforcePeriodicBox=enforcePeriodicBox)
         positions = state.getPositions()
         if old_positions is None:
             old_positions = positions
@@ -1267,8 +1275,9 @@ def run_Metadyn_simulation(model, source_anchor_index,
                         in_anchor = False
                 
                 if in_anchor:
-                    assert not found_anchor, "Found system in two different "\
-                        "anchors in the same step."
+                    if not anchor.bulkstate:
+                        assert not found_anchor, "Found system in two "\
+                            "different anchors in the same step."
                     found_anchor = True
                     if i in destination_anchor_indices:
                         if i == destination_anchor_index:
@@ -1402,15 +1411,20 @@ def run_Metadyn_simulation(model, source_anchor_index,
                     if anchor.bulkstate:
                         found_bulk_state = True
                     
-            #for popping_index in popping_indices:
-            #    destination_anchor_indices.remove(popping_index)
+            for popping_index in popping_indices:
+                if popping_index in anchors_without_structures:
+                    anchors_without_structures.remove(popping_index)
                 
-            if len(destination_anchor_indices) == 0:
+            if len(anchors_without_structures) == 0:
                 # We've reached all destinations
+                print("all anchors entered!")
                 break
             
             if found_bulk_state:
-                break
+                #break
+                print("Bulk state entered. Resetting to starting positions")
+                simulation.context.setPositions(start_positions)
+                found_bulk_state = False
             
         counter += steps_per_anchor_check
     
@@ -1420,7 +1434,7 @@ def run_Metadyn_simulation(model, source_anchor_index,
     ns_per_day = simulation_in_ns / total_time_in_days
     
     # Save structures
-    if not save_structures_as_we_go:
+    if (not save_structures_as_we_go) and (not model.using_toy()):
         for anchor_index in anchor_positions:
             anchor = model.anchors[anchor_index]
             positions = anchor_positions[anchor_index]
