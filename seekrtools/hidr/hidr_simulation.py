@@ -272,7 +272,14 @@ def make_meta_force_bias(cv, min_value, max_value, bias_width, grid_width):
     my_meta_force = cv.make_cv_force(alias_index)
     my_meta_force.setForceGroup(1)
     variables_names_list = cv.add_groups(my_meta_force)
-    cv.add_groups_and_variables(my_meta_force, [], alias_index)
+    variables_values = []
+    if isinstance(cv, mmvt_tiwary_cv.MMVT_tiwary_CV):
+        for i, order_parameter_weight in enumerate(cv.order_parameter_weights):
+            weight_var = "c{}".format(i)
+            my_meta_force.addPerBondParameter(weight_var)
+            variables_values.append(order_parameter_weight)
+            
+    cv.add_groups_and_variables(my_meta_force, variables_values, alias_index)
     
     # Check cv type to see whether periodic should be accepted
         
