@@ -105,7 +105,7 @@ def hidr(model, destination, pdb_files=[], toy_coordinates=None, dry_run=False,
     
     mode = mode.lower()
     
-    assert mode in ["smd", "ramd", "metadyn", "meta"], \
+    assert mode in ["smd", "ramd", "metadyn", "meta", "metad"], \
         "Incorrect mode option: {}. ".format(mode)\
         +"Available options are: 'SMD', 'RAMD', and 'metadyn'/'meta'."
     

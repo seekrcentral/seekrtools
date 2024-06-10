@@ -13,3 +13,4 @@ anymore - the methods within have been superceded by other approaches.
 
    tutorial_tryp_ben_equilibrate
    tutorial_tryp_ben_smd
+   tutorial_tryp_ben_hidr_smd

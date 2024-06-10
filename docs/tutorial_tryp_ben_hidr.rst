@@ -1,8 +1,8 @@
 Tutorial: Generating Trypsin/Benzamidine Starting Structures With HIDR
 ======================================================================
 
-In this tutorial, we will be performing steered molecular dynamics (SMD) on the
-equilibrated trypsin/benzamidine system to pull the ligand slowly out of the
+In this tutorial, we will be performing metadynamics (metaD) on the
+equilibrated trypsin/benzamidine system to gently draw the ligand out of the
 bound state, saving structures along the way, which we can then turn around and 
 use as starting structures for a SEEKR2 calculation. This will be accomplished
 using the HIDR (Holo Insertion by Directed Restraints) tool.
@@ -56,8 +56,8 @@ Now the model XML file and the entire filetree has been generated at
 but the model is empty - no PDB files define starting structures in any of
 the anchor directories.
 
-Running HIDR on the new Model
------------------------------
+Running HIDR on the new Model using MetaD
+-----------------------------------------
 
 We will use HIDR's steered molecular dynamics (SMD) functions to slowly pull
 the system into every anchor and save the structures for later SEEKR2
@@ -71,40 +71,29 @@ calculations.
 
 Run HIDR with the following command.::
 
-  python ~/seekrtools/seekrtools/hidr/hidr.py any ~/tryp_ben_hidr_tutorial/model.xml -M SMD -p tryp_ben.pdb
+  python ~/seekrtools/seekrtools/hidr/hidr.py any ~/tryp_ben_hidr_tutorial/model.xml -M metaD -p tryp_ben.pdb
 
 This command is likely to run for hours or possibly days, depending on the 
 speed of your GPU.
 
-Additional HIDR Settings
-------------------------
+Additional HIDR Settings for SMD (Deprecated)
+---------------------------------------------
 
 One can get a good overview of HIDR arguments by running HIDR with the "-h"
 argument.::
 
   python ~/seekrtools/seekrtools/hidr/hidr.py -h
   
-Some significant options include running a certain number of equilibration 
-steps before any SMD is performed. For instance, adding the following argument 
-will cause HIDR to perform 10,000,000 steps of equilibration (1 ns) before doing
-any SMD::
+Some significant options include running metaD with lower Gaussian heights,
+which can be an even more gentle way of drawing the ligand out of the site.
+Care must be taken when choosing the optimal Gaussian height, as a value that
+is too small will simply never exit, but a value that is too large might make
+the ligand exit too harshly. The recommended procedure is to start at a 
+relatively low value, and if the ligand doesn't escape in a reasonable amount 
+of time (tens of ns), then use a progressively larger value until it escapes.::
 
-  -e 10000000
+  -H 0.2
   
-One can also allow some equilibration steps in each anchor after the SMD has
-brought it there (called "settling steps" in HIDR).::
-
-  -S 20000000
-  
-By default, HIDR SMD will bring the system to each anchor at an approximate
-speed of 0.01 nm/ns, which is a balance between fast enough to reach each 
-anchor in a reasonable time, but also not too fast to avoid excessively
-perturbing the system. But one can adjust this speed with the -v argument.
-For instance, if one wants to perform SMD ten times faster (finishing in 
-a tenth of the time, one may set the speed to 0.1 nm/ns.::
-
-  -v 0.1
-
 Where to do next? You are ready to perform a SEEKR2 calculation. So if you
 haven't already, visit the SEEKR2 tutorials to review how to run a SEEKR2
 calculation, if needed.
