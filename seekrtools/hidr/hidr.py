@@ -46,7 +46,7 @@ def catch_erroneous_destination(destination):
     return True
 
 def assign_pdb_or_toy_coords(model, pdb_files=None, toy_coordinates=None,
-                             skip_checks=False):
+                             skip_checks=False, dry_run=False):
     if model.using_toy():
         for toy_coordinate in toy_coordinates:
             assert len(toy_coordinate) == 3
@@ -54,7 +54,8 @@ def assign_pdb_or_toy_coords(model, pdb_files=None, toy_coordinates=None,
         
     else:
         for pdb_file in pdb_files:
-            hidr_base.assign_pdb_file_to_model(model, pdb_file, skip_checks)
+            hidr_base.assign_pdb_file_to_model(model, pdb_file, skip_checks, 
+                                               dry_run)
     return
 
 def hidr(model, destination, pdb_files=[], toy_coordinates=None, dry_run=False,
@@ -108,7 +109,8 @@ def hidr(model, destination, pdb_files=[], toy_coordinates=None, dry_run=False,
         "Incorrect mode option: {}. ".format(mode)\
         +"Available options are: 'SMD', 'RAMD', and 'metadyn'/'meta'."
     
-    assign_pdb_or_toy_coords(model, pdb_files, toy_coordinates, skip_checks)
+    assign_pdb_or_toy_coords(model, pdb_files, toy_coordinates, skip_checks,
+                             dry_run)
     
     # Find all anchors with a starting structure
     anchors_with_starting_structures \
@@ -298,7 +300,7 @@ def hidr(model, destination, pdb_files=[], toy_coordinates=None, dry_run=False,
             hidr_base.save_new_model(model, save_old_model=False)
     
     if keeping_starting:
-        assign_pdb_or_toy_coords(model, pdb_files, toy_coordinates)
+        assign_pdb_or_toy_coords(model, pdb_files, toy_coordinates, dry_run)
     
     if not skip_checks:
         print("Running pre-simulation checks...")

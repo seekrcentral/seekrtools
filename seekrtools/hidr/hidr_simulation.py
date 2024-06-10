@@ -66,8 +66,9 @@ from seekrtools.hidr.hidr_base import METADYN_TRAJ_NAME
 #from seekrtools.hidr.hidr_base import SETTLED_TRAJ_NAME
 DEFAULT_METADYN_NPOINTS = 181
 DEFAULT_METADYN_SIGMA = 0.05
-MAX_METADYN_STEPS = 1000000000
+MAX_METADYN_STEPS = 2000000
 METADYN_BIAS_DIR_NAME = "metadyn_bias_dir"
+RESTRAINT_FORCE_CONSTANT = 100.0 * unit.kilocalories_per_mole / unit.angstrom**2
 kcal_per_mol = unit.kilocalories / unit.mole
 
 class HIDR_sim_openmm(common_sim_openmm.Common_sim_openmm):
@@ -96,6 +97,20 @@ class HIDR_sim_openmm(common_sim_openmm.Common_sim_openmm):
         self.energy_reporter = openmm_app.StateDataReporter
         self.forces = None
         return
+
+def impose_receptor_restraints(system, positions, restraint_force_constant, indices):
+    restraint_expr = "0.5*k*periodicdistance(x, y, z, x0, y0, z0)^2"
+    force = openmm.CustomExternalForce(restraint_expr)
+    force.addGlobalParameter("k", restraint_force_constant)
+    force.addPerParticleParameter("x0")
+    force.addPerParticleParameter("y0")
+    force.addPerParticleParameter("z0")
+    for index in indices:
+        position = positions[index]
+        force.addParticle(index, [position[0], position[1], position[2]])
+        
+    system.addForce(force)
+    return
 
 def get_timestep(model):
     """
@@ -462,8 +477,12 @@ def add_metadyn_cvs(model, bias_widths, grid_widths, ignore_cv=None):
             variable_values.append(value)
         
         #min_value = min(variable_values)
-        min_value = 0.0
-        max_value = max(variable_values)
+        if isinstance(cv, mmvt_spherical_cv.MMVT_spherical_CV):
+            min_value = 0.0
+            max_value = max(variable_values)
+        else:
+            min_value = min(variable_values)
+            max_value = max(variable_values)
         
         curdir = os.getcwd()
         os.chdir(model.anchor_rootdir)
@@ -484,6 +503,48 @@ def add_metadyn_cvs(model, bias_widths, grid_widths, ignore_cv=None):
         os.chdir(curdir)
         meta_force_biases.append(myforce_bias)
     
+    return meta_force_biases
+
+def add_metadyn_cvs_cartesian(model, bias_widths, grid_widths, min_x, max_x, 
+                              min_y, max_y, min_z, max_z, ligand_indices,
+                              receptor_indices):
+    """
+    
+    """
+    # TODO: very hacky, assumes that the first CV is spherical, and that
+    #  group2 is the ligand
+    print("pushing these indices out:", ligand_indices)
+    print("min_x:", min_x, "max_x:", max_x)
+    print("min_y:", min_y, "max_y:", max_y)
+    print("min_z:", min_z, "max_z:", max_z)
+    curdir = os.getcwd()
+    os.chdir(model.anchor_rootdir)
+    assert len(ligand_indices) > 0, "No ligand atoms could be found."
+    x_force = openmm.CustomCentroidBondForce(2, "x1 - x2")
+    mygroup_x_lig = x_force.addGroup(ligand_indices)
+    mygroup_x_rec = x_force.addGroup(receptor_indices)
+    x_force.addBond([mygroup_x_lig, mygroup_x_rec], [])
+    y_force = openmm.CustomCentroidBondForce(2, "y1 - y2")
+    mygroup_y_lig = y_force.addGroup(ligand_indices)
+    mygroup_y_rec = y_force.addGroup(receptor_indices)
+    y_force.addBond([mygroup_y_lig, mygroup_y_rec], [])
+    z_force = openmm.CustomCentroidBondForce(2, "z1 - z2")
+    mygroup_z_lig = z_force.addGroup(ligand_indices)
+    mygroup_z_rec = z_force.addGroup(receptor_indices)
+    z_force.addBond([mygroup_z_lig, mygroup_z_rec], [])
+    
+    myforce_x_bias = openmm_app.BiasVariable(
+        x_force, minValue=min_x, maxValue=max_x,
+        biasWidth=bias_widths[0], periodic=False, gridWidth=grid_widths[0])
+    myforce_y_bias = openmm_app.BiasVariable(
+        y_force, minValue=min_y, maxValue=max_y,
+        biasWidth=bias_widths[1], periodic=False, gridWidth=grid_widths[1])
+    myforce_z_bias = openmm_app.BiasVariable(
+        z_force, minValue=min_z, maxValue=max_z,
+        biasWidth=bias_widths[2], periodic=False, gridWidth=grid_widths[2])
+    
+    meta_force_biases = [myforce_x_bias, myforce_y_bias, myforce_z_bias]
+    os.chdir(curdir)
     return meta_force_biases
 
 def add_barostat(sim_openmm, model):
@@ -1115,6 +1176,28 @@ def run_RAMD_simulation(model, force_constant, source_anchor_index,
     
     return ns_per_day
 
+def save_metaD_info_file(model, metadyn_npoints, min_x, max_x, min_y, max_y, 
+        min_z, max_z, com):
+    info_filename = os.path.join(model.anchor_rootdir, "metaD_3d_info.txt")
+    min_x += com[0]
+    max_x += com[0]
+    min_y += com[1]
+    max_y += com[1]
+    min_z += com[2]
+    max_z += com[2]
+    with open(info_filename, "w") as f:
+        f.write(f"n_x: {metadyn_npoints[0]}\n")
+        f.write(f"n_y: {metadyn_npoints[1]}\n")
+        f.write(f"n_z: {metadyn_npoints[2]}\n")
+        f.write(f"min_x: {min_x}\n")
+        f.write(f"max_x: {max_x}\n")
+        f.write(f"min_y: {min_y}\n")
+        f.write(f"max_y: {max_y}\n")
+        f.write(f"min_z: {min_z}\n")
+        f.write(f"max_z: {max_z}\n")
+        
+    return
+
 def run_Metadyn_simulation(model, source_anchor_index, 
                            destination_anchor_indices,
                            max_num_steps=MAX_METADYN_STEPS,
@@ -1145,13 +1228,13 @@ def run_Metadyn_simulation(model, source_anchor_index,
     save_structures_as_we_go = False
     save_final_structure = True # Vs. saving the first structure when a new
     # anchor is encountered.
-    save_plot = True
+    save_plot = False #True
     anchor_positions = {}
     if anchors_with_starting_structures is None:
         visited_anchors = set()
     else:
         visited_anchors = set(anchors_with_starting_structures)
-        
+    
     #if save_final_structure:
     #    removing_starting_from_skipped_structures = True
     #else:
@@ -1189,7 +1272,19 @@ def run_Metadyn_simulation(model, source_anchor_index,
             else:
                 #start_value = cv.get_openmm_context_cv_value(None, positions, system)
                 cv_id_list.append(var_cv)
-            
+    """
+    # Impose restraints
+    # TODO: very hacky - assuming that cv zero is a spherical CV and that
+    #  group1 variable is the receptor.
+    print("restraining receptor atoms")
+    cv = model.collective_variables[0]
+    restraint_indices = cv.group1
+    ligand_indices = cv.group2
+    assert len(restraint_indices) > 0, "No atoms could be restrained."
+    impose_receptor_restraints(system, start_positions, 
+                               RESTRAINT_FORCE_CONSTANT, restraint_indices)
+    """
+    # This applied to the old way of applying metadyn to each CV
     # Make Metadyn CV
     num_cvs = len(cv_id_list)
     if metadyn_npoints is None:
@@ -1201,7 +1296,12 @@ def run_Metadyn_simulation(model, source_anchor_index,
         metadyn_sigma = [DEFAULT_METADYN_SIGMA] * num_cvs
     elif not (type(metadyn_sigma) == list):
         metadyn_sigma = [metadyn_sigma]
-        
+    
+    """# Cartesian metadyn - the new way
+    metadyn_npoints = [DEFAULT_METADYN_NPOINTS] * 3
+    metadyn_sigma = [DEFAULT_METADYN_SIGMA] * 3
+    """
+    
     print(f"metadyn_npoints: {metadyn_npoints}")
     print(f"metadyn_sigma: {metadyn_sigma}")
     if save_final_structure:
@@ -1210,7 +1310,24 @@ def run_Metadyn_simulation(model, source_anchor_index,
         print("Saving structures from first time anchor is entered.")
     
     metadyn_cvs = add_metadyn_cvs(model, metadyn_sigma, metadyn_npoints, ignore_cv)
-    
+    #lig_com = base.get_openmm_center_of_mass_com(
+    #    system, start_positions, ligand_indices)
+    """ # 3D Cartesian way
+    rec_com = base.get_openmm_center_of_mass_com(
+        system, start_positions, restraint_indices)
+    min_x = -2.5 * unit.nanometers
+    max_x = 2.5 * unit.nanometers
+    min_y = -2.5 * unit.nanometers
+    max_y = 2.5 * unit.nanometers
+    min_z = -2.5 * unit.nanometers
+    max_z = 2.5 * unit.nanometers
+    dG_filename = os.path.join(model.anchor_rootdir, "metaD_dG_data")
+    metadyn_cvs = add_metadyn_cvs_cartesian(
+        model, metadyn_sigma, metadyn_npoints, min_x, max_x, min_y, max_y, 
+        min_z, max_z, ligand_indices, restraint_indices)
+    save_metaD_info_file(model, metadyn_npoints, min_x, max_x, min_y, max_y, 
+        min_z, max_z, rec_com)
+    """
     metadyn_bias_dir = os.path.join(model.anchor_rootdir, METADYN_BIAS_DIR_NAME)
     if not os.path.exists(metadyn_bias_dir):
         os.mkdir(metadyn_bias_dir)
@@ -1246,7 +1363,7 @@ def run_Metadyn_simulation(model, source_anchor_index,
     if model.using_toy():
         tolerance = 0.0
     else:
-        tolerance = 0.0 #-0.001
+        tolerance = -0.00001 #0.0
     
     start_time = time.time()
     counter = 0
@@ -1255,6 +1372,10 @@ def run_Metadyn_simulation(model, source_anchor_index,
     found_bulk_state = False
     destination_anchor_index = source_anchor_index
     anchors_without_structures = deepcopy(destination_anchor_indices)
+    if anchors_with_starting_structures is not None:
+        for anchor_with_starting_structures in anchors_with_starting_structures:
+            anchors_without_structures.remove(anchor_with_starting_structures)
+            
     while counter < max_num_steps:
         meta.step(simulation, steps_per_anchor_check)
         state = simulation.context.getState(
@@ -1319,8 +1440,30 @@ def run_Metadyn_simulation(model, source_anchor_index,
                                         
                                     destination_anchor.charmm_params = deepcopy(source_anchor.charmm_params)
                                     if destination_anchor.charmm_params is not None:
-                                        raise Exception("charmm not yet implemented for RAMD")
-                                        # TODO: more here for charmm
+                                        src_psf_filename = os.path.join(
+                                            model.anchor_rootdir, source_anchor.directory, 
+                                            source_anchor.building_directory,
+                                            source_anchor.charmm_params.psf_filename)
+                                        dest_psf_filename = os.path.join(
+                                            model.anchor_rootdir, destination_anchor.directory, 
+                                            destination_anchor.building_directory,
+                                            destination_anchor.charmm_params.psf_filename)
+                                        if os.path.exists(dest_psf_filename):
+                                            os.remove(dest_psf_filename)
+                                        copyfile(src_psf_filename, dest_psf_filename)
+                                        
+                                        for charmm_ff_file in source_anchor.charmm_params.charmm_ff_files:
+                                            src_ff_filename = os.path.join(
+                                                model.anchor_rootdir, source_anchor.directory, 
+                                                source_anchor.building_directory,
+                                                charmm_ff_file)
+                                            dest_ff_filename = os.path.join(
+                                                model.anchor_rootdir, destination_anchor.directory, 
+                                                destination_anchor.building_directory,
+                                                charmm_ff_file)
+                                            if os.path.exists(dest_ff_filename):
+                                                os.remove(dest_ff_filename)
+                                            copyfile(src_ff_filename, dest_ff_filename)
                                 
                                     hidr_base.change_anchor_box_vectors(
                                         destination_anchor, box_vectors.to_quantity())
@@ -1381,7 +1524,9 @@ def run_Metadyn_simulation(model, source_anchor_index,
                                         
                             else:
                                 if save_structures_as_we_go:
-                                    hidr_output_pdb_name = METADYN_NAME.format(var_string, anchor_pdb_counters[old_anchor_index])
+                                    hidr_output_pdb_name = METADYN_NAME.format(
+                                        var_string, 
+                                        anchor_pdb_counters[old_anchor_index])
                                     hidr_base.change_anchor_pdb_filename(
                                         old_anchor, hidr_output_pdb_name)
                                     output_pdb_file = os.path.join(
@@ -1422,6 +1567,7 @@ def run_Metadyn_simulation(model, source_anchor_index,
                 if popping_index in anchors_without_structures:
                     anchors_without_structures.remove(popping_index)
                 
+            print("anchors_without_structures:", anchors_without_structures)
             if len(anchors_without_structures) == 0:
                 # We've reached all destinations
                 print("all anchors entered!")
@@ -1432,9 +1578,14 @@ def run_Metadyn_simulation(model, source_anchor_index,
                 print("Bulk state entered. Resetting to starting positions")
                 simulation.context.setPositions(start_positions)
                 found_bulk_state = False
-            
+        
+        # NEW WAY
+        #if counter % energy_reporter_interval == 0:
+        #    dG = meta.getFreeEnergy().value_in_unit(kcal_per_mol)
+        #    np.save(dG_filename, dG)
+        
         counter += steps_per_anchor_check
-    
+        
     total_time = time.time() - start_time
     simulation_in_ns = counter * time_step.value_in_unit(unit.picosecond)  * 1e-3
     total_time_in_days = total_time / (86400.0)

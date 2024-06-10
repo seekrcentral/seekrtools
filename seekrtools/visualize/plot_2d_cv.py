@@ -706,6 +706,7 @@ if __name__ == "__main__":
         assert traj_file is not None, \
             "Both topology_file and traj_file must be defined, or neither."
         voronoi_cv = model.collective_variables[0]
+        assert isinstance(model.collective_variables[0], mmvt_voronoi_cv.MMVT_Voronoi_CV)
         cv_values = make_traj_cv_values(voronoi_cv, topology_file, traj_file)
         traj_values = {0:cv_values}
     else:

@@ -66,10 +66,12 @@ def find_anchors_with_starting_structure(model):
                 anchors_with_starting_structures.append(anchor.index)
         
         elif anchor.forcefield_params is not None:
-            anchors_with_starting_structures.append(anchor.index)
+            if anchor.charmm_params.pdb_coordinates_filename:
+                anchors_with_starting_structures.append(anchor.index)
         
         elif anchor.charmm_params is not None:
-            raise Exception("Charmm systems not yet implemented")
+            if anchor.charmm_params.pdb_coordinates_filename:
+                anchors_with_starting_structures.append(anchor.index)
         
     
     assert len(anchors_with_starting_structures) > 0, "No anchors with "\
@@ -247,7 +249,9 @@ def check_settling_anchors(model, complete_anchor_list, force_overwrite=False):
                     = anchor.forcefield_params.pdb_coordinates_filename
         
         elif anchor.charmm_params is not None:
-            raise Exception("Charmm systems not yet implemented")
+            if anchor.charmm_params.pdb_coordinates_filename:
+                pdb_coords_filename \
+                    = anchor.charmm_params.pdb_coordinates_filename
         
         if force_overwrite:
             settling_anchor_list.append(i)
@@ -350,7 +354,7 @@ def change_anchor_box_vectors(anchor, new_box_vectors):
         
     return
 
-def assign_pdb_file_to_model(model, pdb_file, skip_checks=False):
+def assign_pdb_file_to_model(model, pdb_file, skip_checks=False, dry_run=False):
     """
     Given a pdb file, assign it to an anchor where it fits between the 
     milestones of the anchor.
@@ -368,12 +372,16 @@ def assign_pdb_file_to_model(model, pdb_file, skip_checks=False):
             break
         
         if not skip_checks:
-            traj = mdtraj.load(pdb_file)
-            assert traj.n_frames == 1, "More than one frame detected in PDB "\
-                f"file {pdb_file}. PDB files assigned using HIDR ought to "\
-                "have a single frame, or else problems may occur in later "\
-                "calculation stages. If you wish to proceed anyways, you may "\
-                "skip checks with the '-s' or '--skip_checks' argument."
+            try:
+                traj = mdtraj.load(pdb_file)
+                assert traj.n_frames == 1, "More than one frame detected in PDB "\
+                    f"file {pdb_file}. PDB files assigned using HIDR ought to "\
+                    "have a single frame, or else problems may occur in later "\
+                    "calculation stages. If you wish to proceed anyways, you may "\
+                    "skip checks with the '-s' or '--skip_checks' argument."
+            
+            except ValueError:
+                print("Warning: unable to test input PDB for multiple frames.")
         
         tmp_path = tempfile.NamedTemporaryFile()
         output_file = tmp_path.name
@@ -411,11 +419,12 @@ def assign_pdb_file_to_model(model, pdb_file, skip_checks=False):
             pdb_base = os.path.basename(pdb_file)
             new_pdb_filename = os.path.join(anchor_building_dir, 
                                             pdb_base)
-            copyfile(os.path.expanduser(pdb_file), new_pdb_filename)
+            if not dry_run:
+                copyfile(os.path.expanduser(pdb_file), new_pdb_filename)
             print("Assigning pdb file {} to anchor {}".format(
                 pdb_file, anchor.index))
             change_anchor_pdb_filename(anchor, pdb_base)
-            box_vectors = base.get_box_vectors_from_pdb(new_pdb_filename)
+            box_vectors = base.get_box_vectors_from_pdb(pdb_file)
             change_anchor_box_vectors(anchor, box_vectors)
             anchor.endstate = True
             
@@ -447,4 +456,3 @@ def assign_toy_coords_to_model(model, toy_coordinates):
                 toy_coordinates, anchor.index))
             return anchor.index
     raise Exception("No starting anchor found for coordinates.")
-    

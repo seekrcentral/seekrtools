@@ -113,7 +113,7 @@ Next, see if you have Antechamber::
 If this returns a path, you should be good. Otherwise, you'll need to install 
 AmberTools. If antechamber exists on your computer, run the following command::
 
-  antechamber -i ben.pdb -fi pdb -bk BEN -o benz.mol2 -fo mol2 -c bcc -nc 1
+  antechamber -i ben.pdb -fi pdb -bk BEN -o benz.mol2 -fo mol2 -c bcc -nc 1 -at gaff2
 
 Each argument means the following information:
 
@@ -132,6 +132,8 @@ of the atoms.
 
 **-nc 1** - This molecule has a net molecular charge of +1 due to its 
 protonation state in aqueous environments at pH 7.
+
+**-at gaff2** - Use the GAFF2 small-molecule force field
 
 
 .. note::
@@ -155,7 +157,7 @@ parameters for the benzamidine molecule. Enter the following commands into
 the terminal::
   
   tleap
-  source leaprc.gaff
+  source leaprc.gaff2
   BEN = loadmol2 benz.mol2
   saveoff BEN benz.lib
   quit
@@ -173,7 +175,7 @@ If you haven't yet downloaded
 Now with a text editor, copy the following script to a file named **leaprc**::
 
   source leaprc.protein.ff14SB
-  source leaprc.gaff
+  source leaprc.gaff2
   source leaprc.water.tip4pew
   set default PBRadii mbondi2
   loadoff benz.lib

@@ -16,8 +16,9 @@ and the SEEKR2 documentation at https://seekr2.readthedocs.io/en/latest.
 
 Install Seekrtools
 ------------------
-If you are using Conda (recommended) with SEEKR2, make sure that the environment
-is activated before executing the following steps to install Seekrtools::
+If you are using Mamba/Conda (recommended) with SEEKR2, make sure that the 
+environment is activated before executing the following steps to install 
+Seekrtools::
 
   git clone https://github.com/seekrcentral/seekrtools.git
   cd seekrtools

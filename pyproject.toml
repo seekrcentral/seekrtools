@@ -26,6 +26,7 @@ dependencies = [
     "parmed",
     "mdtraj",
     "pytest",
+    "networkx",
 ]
 
 # Update the urls once the hosting is set up.

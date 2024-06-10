@@ -78,7 +78,12 @@ def make_traj_cv_values(model):
         cv_values = []
         #for chunk in mdtraj.iterload(mmvt_traj_filenames, top=top_file_name, 
         #                             chunk=10):
-        chunk = mdtraj.load(mmvt_traj_filenames, top=top_file_name)
+        try:
+            chunk = mdtraj.load(mmvt_traj_filenames, top=top_file_name)
+        except OSError:
+            print("Error while loading file(s):", mmvt_traj_filenames, 
+                  ". Skipping.")
+            
         for frame_index in range(chunk.n_frames):
             sub_cv1 = voronoi_cv.child_cvs[0]
             sub_cv2 = voronoi_cv.child_cvs[1]
