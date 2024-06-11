@@ -76,8 +76,8 @@ Run HIDR with the following command.::
 This command is likely to run for hours or possibly days, depending on the 
 speed of your GPU.
 
-Additional HIDR Settings for SMD (Deprecated)
----------------------------------------------
+Additional HIDR Settings for MetaD
+----------------------------------
 
 One can get a good overview of HIDR arguments by running HIDR with the "-h"
 argument.::
