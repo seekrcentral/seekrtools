@@ -105,9 +105,10 @@ def hidr(model, destination, pdb_files=[], toy_coordinates=None, dry_run=False,
     
     mode = mode.lower()
     
-    assert mode in ["smd", "ramd", "metadyn", "meta", "metad"], \
+    assert mode in ["smd", "ramd", "metadyn", "meta", "metad", "metadxyz"], \
         "Incorrect mode option: {}. ".format(mode)\
-        +"Available options are: 'SMD', 'RAMD', and 'metadyn'/'meta'."
+        +"Available options are: 'SMD', 'RAMD', 'metadyn'/'meta'/'metaD', ." \
+        +"and metaDxyz"
     
     assign_pdb_or_toy_coords(model, pdb_files, toy_coordinates, skip_checks,
                              dry_run)
@@ -146,7 +147,7 @@ def hidr(model, destination, pdb_files=[], toy_coordinates=None, dry_run=False,
             model, anchors_with_starting_structures, destination_list)
         estimated_smd_time = hidr_network.estimate_simulation_time(
         model, procedure, translation_velocity)
-    elif (mode == "ramd") or (mode in ["metadyn", "meta", "metad"]):
+    elif (mode == "ramd") or (mode in ["metadyn", "meta", "metad", "metadxyz"]):
         #procedure = [[anchors_with_starting_structures[-1], destination_list]]
         smd_procedure = hidr_network.get_procedure(
             model, anchors_with_starting_structures, destination_list)
@@ -185,7 +186,7 @@ def hidr(model, destination, pdb_files=[], toy_coordinates=None, dry_run=False,
         elif mode == "ramd":
             force_constant = ramd_force_magnitude
         
-        elif mode in ["metadyn", "meta", "metad"]:
+        elif mode in ["metadyn", "meta", "metad", "metadxyz"]:
             force_constant = None
         
         if force_constant is not None:
@@ -221,7 +222,7 @@ def hidr(model, destination, pdb_files=[], toy_coordinates=None, dry_run=False,
         
     # Run the recipe of SMD instructions
     for step in procedure:
-        if mode.lower() == "smd":
+        if mode == "smd":
             source_anchor_index = step[0]
             destination_anchor_index = step[1]
             print("running SMD from anchor {} to anchor {}".format(
@@ -234,7 +235,7 @@ def hidr(model, destination, pdb_files=[], toy_coordinates=None, dry_run=False,
             # save the new model file and check the generated structures
             hidr_base.save_new_model(model, save_old_model=False)
             
-        elif mode.lower() == "ramd":
+        elif mode == "ramd":
             source_anchor_index = step[0]
             destination_anchor_indices = step[1]
             print("running RAMD from anchor {} to anchor {}".format(
@@ -259,9 +260,14 @@ def hidr(model, destination, pdb_files=[], toy_coordinates=None, dry_run=False,
             print("Benchmark:", ns_per_day, "ns/day")
             hidr_base.save_new_model(model, save_old_model=False)
             
-        elif mode.lower() in ["metadyn", "meta", "metad"]:
+        elif mode in ["metadyn", "meta", "metad", "metadxyz"]:
             source_anchor_index = step[0]
             destination_anchor_indices = step[1]
+            if mode in ["metadxyz"]:
+                xyz_cartesian = True
+            else:
+                xyz_cartesian = False
+                
             print("running Metadynamics from anchor {} to anchor {}".format(
                 source_anchor_index, destination_anchor_indices))
             ns_per_day = hidr_simulation.run_Metadyn_simulation(
@@ -272,7 +278,8 @@ def hidr(model, destination, pdb_files=[], toy_coordinates=None, dry_run=False,
                 metadyn_npoints=None, metadyn_sigma=metadyn_sigma, 
                 metadyn_biasfactor=metadyn_biasfactor, 
                 metadyn_height=metadyn_height, ignore_cv=None, 
-                anchors_with_starting_structures=anchors_with_starting_structures)
+                anchors_with_starting_structures=anchors_with_starting_structures,
+                xyz_cartesian=xyz_cartesian)
             # save the new model file and check the generated structures
             print("Benchmark:", ns_per_day, "ns/day")
             hidr_base.save_new_model(model, save_old_model=False)
@@ -325,8 +332,8 @@ if __name__ == "__main__":
         "-M", "--mode", dest="mode", default="SMD", type=str,
         metavar="MODE", help="The 'mode' or type of enhanced sampling method"\
         "to use for generating starting structures for HIDR. At this time, "\
-        "the options 'SMD', 'RAMD', and 'MetaD' have been implemented. "\
-        "Default: SMD.")
+        "the options 'SMD', 'RAMD', 'MetaD', 'MetaDxyz' have been "\
+        "implemented. Default: SMD.")
     
     argparser.add_argument(
         "-p", "--pdb_files", dest="pdb_files", default=[], nargs="*", type=str,

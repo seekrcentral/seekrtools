@@ -1206,7 +1206,8 @@ def run_Metadyn_simulation(model, source_anchor_index,
                            metadyn_npoints=None, metadyn_sigma=None, 
                            metadyn_biasfactor=10.0, metadyn_height=1.0, 
                            ignore_cv=None, 
-                           anchors_with_starting_structures=None):
+                           anchors_with_starting_structures=None,
+                           xyz_cartesian=False):
     """
     Run a metadynamics  simulation 
     until every destination anchor index has been reached. The 
@@ -1272,35 +1273,36 @@ def run_Metadyn_simulation(model, source_anchor_index,
             else:
                 #start_value = cv.get_openmm_context_cv_value(None, positions, system)
                 cv_id_list.append(var_cv)
-    """
-    # Impose restraints
-    # TODO: very hacky - assuming that cv zero is a spherical CV and that
-    #  group1 variable is the receptor.
-    print("restraining receptor atoms")
-    cv = model.collective_variables[0]
-    restraint_indices = cv.group1
-    ligand_indices = cv.group2
-    assert len(restraint_indices) > 0, "No atoms could be restrained."
-    impose_receptor_restraints(system, start_positions, 
-                               RESTRAINT_FORCE_CONSTANT, restraint_indices)
-    """
+    
+    if xyz_cartesian:
+        # Impose restraints if using Cartesian MetaD
+        # TODO: very hacky - assuming that cv zero is a spherical CV and that
+        #  group1 variable is the receptor.
+        print("restraining receptor atoms")
+        cv = model.collective_variables[0]
+        restraint_indices = cv.group1
+        ligand_indices = cv.group2
+        assert len(restraint_indices) > 0, "No atoms could be restrained."
+        impose_receptor_restraints(system, start_positions, 
+                                   RESTRAINT_FORCE_CONSTANT, restraint_indices)
+    
     # This applied to the old way of applying metadyn to each CV
     # Make Metadyn CV
-    num_cvs = len(cv_id_list)
-    if metadyn_npoints is None:
-        metadyn_npoints = [DEFAULT_METADYN_NPOINTS] * num_cvs
-    elif not (type(metadyn_npoints) == list):
-        metadyn_npoints = [metadyn_npoints]
-    
-    if metadyn_sigma is None:
-        metadyn_sigma = [DEFAULT_METADYN_SIGMA] * num_cvs
-    elif not (type(metadyn_sigma) == list):
-        metadyn_sigma = [metadyn_sigma]
-    
-    """# Cartesian metadyn - the new way
-    metadyn_npoints = [DEFAULT_METADYN_NPOINTS] * 3
-    metadyn_sigma = [DEFAULT_METADYN_SIGMA] * 3
-    """
+    if xyz_cartesian:
+        # Cartesian metadyn
+        metadyn_npoints = [DEFAULT_METADYN_NPOINTS] * 3
+        metadyn_sigma = [DEFAULT_METADYN_SIGMA] * 3
+    else:
+        num_cvs = len(cv_id_list)
+        if metadyn_npoints is None:
+            metadyn_npoints = [DEFAULT_METADYN_NPOINTS] * num_cvs
+        elif not (type(metadyn_npoints) == list):
+            metadyn_npoints = [metadyn_npoints]
+        
+        if metadyn_sigma is None:
+            metadyn_sigma = [DEFAULT_METADYN_SIGMA] * num_cvs
+        elif not (type(metadyn_sigma) == list):
+            metadyn_sigma = [metadyn_sigma]
     
     print(f"metadyn_npoints: {metadyn_npoints}")
     print(f"metadyn_sigma: {metadyn_sigma}")
@@ -1309,25 +1311,25 @@ def run_Metadyn_simulation(model, source_anchor_index,
     else:
         print("Saving structures from first time anchor is entered.")
     
-    metadyn_cvs = add_metadyn_cvs(model, metadyn_sigma, metadyn_npoints, ignore_cv)
-    #lig_com = base.get_openmm_center_of_mass_com(
-    #    system, start_positions, ligand_indices)
-    """ # 3D Cartesian way
-    rec_com = base.get_openmm_center_of_mass_com(
-        system, start_positions, restraint_indices)
-    min_x = -2.5 * unit.nanometers
-    max_x = 2.5 * unit.nanometers
-    min_y = -2.5 * unit.nanometers
-    max_y = 2.5 * unit.nanometers
-    min_z = -2.5 * unit.nanometers
-    max_z = 2.5 * unit.nanometers
-    dG_filename = os.path.join(model.anchor_rootdir, "metaD_dG_data")
-    metadyn_cvs = add_metadyn_cvs_cartesian(
-        model, metadyn_sigma, metadyn_npoints, min_x, max_x, min_y, max_y, 
-        min_z, max_z, ligand_indices, restraint_indices)
-    save_metaD_info_file(model, metadyn_npoints, min_x, max_x, min_y, max_y, 
-        min_z, max_z, rec_com)
-    """
+    if xyz_cartesian:
+        rec_com = base.get_openmm_center_of_mass_com(
+            system, start_positions, restraint_indices)
+        min_x = -2.5 * unit.nanometers
+        max_x = 2.5 * unit.nanometers
+        min_y = -2.5 * unit.nanometers
+        max_y = 2.5 * unit.nanometers
+        min_z = -2.5 * unit.nanometers
+        max_z = 2.5 * unit.nanometers
+        dG_filename = os.path.join(model.anchor_rootdir, "metaD_dG_data")
+        metadyn_cvs = add_metadyn_cvs_cartesian(
+            model, metadyn_sigma, metadyn_npoints, min_x, max_x, min_y, max_y, 
+            min_z, max_z, ligand_indices, restraint_indices)
+        save_metaD_info_file(model, metadyn_npoints, min_x, max_x, min_y, max_y, 
+            min_z, max_z, rec_com)
+    else:
+        metadyn_cvs = add_metadyn_cvs(model, metadyn_sigma, metadyn_npoints, 
+                                      ignore_cv)
+    
     metadyn_bias_dir = os.path.join(model.anchor_rootdir, METADYN_BIAS_DIR_NAME)
     if not os.path.exists(metadyn_bias_dir):
         os.mkdir(metadyn_bias_dir)
