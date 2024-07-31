@@ -22,7 +22,7 @@ import seekr2.modules.common_base as base
 import seekr2.modules.runner_browndye2 as runner_browndye2
 
 MAX_B_SURFACE_FHPD_STRUCTURES = 1000
-
+SILENT = True
 
 def make_proc_file_last_frame(input_filename, output_filename, 
                               pqrxml_path_1, pqrxml_path_2):
@@ -233,7 +233,7 @@ def extract_bd_surface(model, bd_milestone, extract_directory,
                 pqr_filename = os.path.join(extract_directory, 
                                             "lig%d_%d_%d.pqr" % (i,j,k))
                 lig_pqr_filenames.append(pqr_filename)
-                command = vtf_trajectory+" -traj %s -pqr > %s"\
+                command = vtf_trajectory+" < %s -pqr > %s"\
                     % (last_frame_name, pqr_filename)
                 if not silent:
                     print("running command:", command)
@@ -251,7 +251,7 @@ def extract_bd_surface(model, bd_milestone, extract_directory,
                 pqr_rec_filename = os.path.join(
                     extract_directory, "receptor%d_%d_%d.pqr" % (i,j,k))
                 rec_pqr_filenames.append(pqr_rec_filename)
-                command = vtf_trajectory+" -traj %s -pqr > "\
+                command = vtf_trajectory+" < %s -pqr > "\
                     "%s" % (last_frame_name, pqr_rec_filename)
                 if not silent:
                     print("running command:", command)
@@ -288,9 +288,9 @@ def make_big_fhpd_trajectory(fhpd_traj_filename, lig_pqr_filenames,
             temp_pdb_filename = os.path.join(temp_dir, "fhpd_TEMP%d.pdb" % i)
             combined_frame.save(temp_pdb_filename, overwrite=True)
             temporary_pdb_filenames.append(temp_pdb_filename)
-            
-        traj = mdtraj.load(temporary_pdb_filenames)
-        traj.save_pdb(fhpd_traj_filename)
+                
+            traj = mdtraj.load(temporary_pdb_filenames)
+            traj.save_pdb(fhpd_traj_filename)
         
     return
 
@@ -313,7 +313,8 @@ def write_bd_fhpd(model, max_b_surface_trajs_to_extract):
             extract_directory = temp_dir
             lig_pqr_files, rec_pqr_files = extract_bd_surface(
                 model, bd_milestone, extract_directory, 
-                max_b_surface_trajs_to_extract, force_overwrite=True)
+                max_b_surface_trajs_to_extract, force_overwrite=True,
+                silent=SILENT)
             if len(lig_pqr_files) == 0:
                 continue
             make_big_fhpd_trajectory(fhpd_traj_path, lig_pqr_files, rec_pqr_files)

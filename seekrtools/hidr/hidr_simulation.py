@@ -1437,8 +1437,51 @@ def run_Metadyn_simulation(model, source_anchor_index,
                                         
                                     destination_anchor.forcefield_params = deepcopy(source_anchor.forcefield_params)
                                     if destination_anchor.forcefield_params is not None:
-                                        raise Exception("forcefield not yet implemented for RAMD")
-                                        # TODO: more here for forcefield
+                                        destff = destination_anchor.forcefield_params
+                                        srcff = source_anchor.forcefield_params
+                                        if destff.built_in_forcefield_filenames is not None and \
+                                                len(destff.built_in_forcefield_filenames) > 0:
+                                            for i, filename in enumerate(destff.built_in_forcefield_filenames):
+                                                src_filename = os.path.join(
+                                                    model.anchor_rootdir, source_anchor.directory, 
+                                                    source_anchor.building_directory,
+                                                    srcff.built_in_forcefield_filenames[i])
+                                                dest_filename = os.path.join(
+                                                    model.anchor_rootdir, destination_anchor.directory, 
+                                                    destination_anchor.building_directory,
+                                                    filename)
+                                                if os.path.exists(dest_filename):
+                                                    os.remove(dest_filename)
+                                                copyfile(src_filename, dest_filename)
+                                                    
+                                        if destff.custom_forcefield_filenames is not None and \
+                                                len(destff.custom_forcefield_filenames) > 0:
+                                            for i, filename in enumerate(forcefield.custom_forcefield_filenames):
+                                                src_filename = os.path.join(
+                                                    model.anchor_rootdir, source_anchor.directory, 
+                                                    source_anchor.building_directory,
+                                                    srcff.custom_forcefield_filenames[i])
+                                                dest_filename = os.path.join(
+                                                    model.anchor_rootdir, destination_anchor.directory, 
+                                                    destination_anchor.building_directory,
+                                                    filename)
+                                                if os.path.exists(dest_filename):
+                                                    os.remove(dest_filename)
+                                                copyfile(src_filename, dest_filename)
+
+                                        if destff.system_filename is not None and \
+                                                destff.system_filename != "":
+                                            src_system_filename = os.path.join(
+                                                model.anchor_rootdir, source_anchor.directory, 
+                                                source_anchor.building_directory,
+                                                srcff.system_filename)
+                                            dest_system_filename = os.path.join(
+                                                model.anchor_rootdir, destination_anchor.directory, 
+                                                destination_anchor.building_directory,
+                                                destff.system_filename)
+                                            if os.path.exists(dest_system_filename):
+                                                os.remove(dest_system_filename)
+                                            copyfile(src_system_filename, dest_system_filename)
                                         
                                     destination_anchor.charmm_params = deepcopy(source_anchor.charmm_params)
                                     if destination_anchor.charmm_params is not None:
@@ -1581,10 +1624,9 @@ def run_Metadyn_simulation(model, source_anchor_index,
                 simulation.context.setPositions(start_positions)
                 found_bulk_state = False
         
-        # NEW WAY
-        #if counter % energy_reporter_interval == 0:
-        #    dG = meta.getFreeEnergy().value_in_unit(kcal_per_mol)
-        #    np.save(dG_filename, dG)
+        if xyz_cartesian and (counter % energy_reporter_interval == 0):
+            dG = meta.getFreeEnergy().value_in_unit(kcal_per_mol)
+            np.save(dG_filename, dG)
         
         counter += steps_per_anchor_check
         

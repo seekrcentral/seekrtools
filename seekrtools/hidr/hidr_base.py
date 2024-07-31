@@ -66,7 +66,7 @@ def find_anchors_with_starting_structure(model):
                 anchors_with_starting_structures.append(anchor.index)
         
         elif anchor.forcefield_params is not None:
-            if anchor.charmm_params.pdb_coordinates_filename:
+            if anchor.forcefield_params.pdb_coordinates_filename:
                 anchors_with_starting_structures.append(anchor.index)
         
         elif anchor.charmm_params is not None:
