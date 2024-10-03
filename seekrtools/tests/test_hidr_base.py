@@ -56,14 +56,6 @@ def test_check_destinations(host_guest_mmvt_model):
         model, anchors_with_starting_structures, destination_list)
     assert relevant_starting_anchor_indices == [0]
     
-    """ # Test no longer necessary
-    destination_str="2"
-    destination_list, complete_anchor_list = hidr_base.find_destinations(
-        model, destination_str, anchors_with_starting_structures)
-    with pytest.raises(Exception):
-        relevant_starting_anchor_indices = hidr_base.check_destinations(
-            model, anchors_with_starting_structures, destination_list)
-    """
     return
 
 def test_save_new_model(host_guest_mmvt_model):

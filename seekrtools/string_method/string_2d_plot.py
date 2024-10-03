@@ -63,7 +63,8 @@ def make_plots_from_logs(model, plot_dir, log_file_glob, title,
     anchor_values_by_iter, trajectory_values_by_iter, max_iter \
         = parse_log_file(model, log_file_glob)
     if max_iter == 0:
-        boundaries = plot_2d_cv.auto_boundary_by_anchor_values(model)
+        boundaries, traj_values \
+            = plot_2d_cv.auto_boundary_by_anchor_values(model)
     else:
         all_point_values = [v for d in anchor_values_by_iter for v in d.values()]
         boundaries = plot_2d_cv.make_boundaries(all_point_values)
@@ -75,7 +76,6 @@ def make_plots_from_logs(model, plot_dir, log_file_glob, title,
                        boundaries, title, x_coordinate_title, 
                        y_coordinate_title, omit_iter_label, dpi, 
                        file_base="string", draw_string=True)
-    print("boundaries:", boundaries)
     return boundaries
 
 if __name__ == "__main__":
@@ -119,7 +119,7 @@ if __name__ == "__main__":
     boundaries = make_plots_from_logs(model, plot_dir, log_file_glob, title,
                                      x_coordinate_title, y_coordinate_title,
                                      omit_iter_label, dpi)
-    plot_2d_cv.make_model_plots(model, plot_dir, title, x_coordinate_title, 
+    plot_2d_cv.make_model_plots(model, plot_dir, x_coordinate_title, 
                     y_coordinate_title, omit_iter_label, dpi, boundaries, 
                     base_name="string", draw_string=True)
     #make_current_plot(model, plot_dir, boundaries)

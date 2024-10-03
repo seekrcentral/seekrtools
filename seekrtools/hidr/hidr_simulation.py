@@ -66,7 +66,7 @@ from seekrtools.hidr.hidr_base import METADYN_TRAJ_NAME
 #from seekrtools.hidr.hidr_base import SETTLED_TRAJ_NAME
 DEFAULT_METADYN_NPOINTS = 181
 DEFAULT_METADYN_SIGMA = 0.05
-MAX_METADYN_STEPS = 2000000
+MAX_METADYN_STEPS = 20000000
 METADYN_BIAS_DIR_NAME = "metadyn_bias_dir"
 RESTRAINT_FORCE_CONSTANT = 100.0 * unit.kilocalories_per_mole / unit.angstrom**2
 kcal_per_mol = unit.kilocalories / unit.mole

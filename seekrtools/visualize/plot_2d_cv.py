@@ -13,9 +13,11 @@ from scipy.spatial import Voronoi, voronoi_plot_2d
 import mdtraj
 import matplotlib
 import matplotlib.pyplot as plt
+from matplotlib.colors import LinearSegmentedColormap
 import networkx as nx
 
 import seekr2.modules.common_base as base
+import seekr2.modules.mmvt_cvs.mmvt_voronoi_cv as mmvt_voronoi_cv
 
 PLOTS_DIRECTORY_NAME = "voronoi_tesselation_plots"
 BACKGROUND_COLOR = "white" #"lightgrey"
@@ -292,11 +294,15 @@ def find_anchor_points(model):
         
     return anchor_values
 
-def plot_voronoi_tesselation(model, boundaries, fill_values=None, colorbar_label="Energy (kcal/mol)"):
+def plot_voronoi_tesselation(model, boundaries, fill_values=None, 
+                             colorbar_label="Energy (kcal/mol)", 
+                             anchor_values=None):
     """
     Would work for either anchors or milestones
     """
-    anchor_values = find_anchor_points(model)
+    if anchor_values is None:
+        anchor_values = find_anchor_points(model)
+        
     points = []
     num_variables = len(model.anchors[0].variables)
     for alpha, anchor in enumerate(model.anchors):
@@ -348,34 +354,30 @@ def plot_voronoi_tesselation(model, boundaries, fill_values=None, colorbar_label
     return fig, ax, vor, points[:-4]
 
 def plot_anchor_voronoi_tesselation(model, boundaries, anchor_fill_values=None,
-                                    include_anchor_labels=True, colorbar_label="Energy (kcal/mol)"):
+                                    include_anchor_labels=True, 
+                                    colorbar_label="Energy (kcal/mol)", 
+                                    anchor_values=None):
     
     fig, ax, vor, points = plot_voronoi_tesselation(
         model, boundaries, fill_values=anchor_fill_values, 
-        colorbar_label=colorbar_label)
+        colorbar_label=colorbar_label, anchor_values=anchor_values)
     
     if include_anchor_labels:
         for i, anchor in enumerate(model.anchors):
             index_str = f"{anchor.index}"
             point = points[i]
-            plt.text(point[0], point[1], index_str, weight="bold")
-    
-    """ # Save for milestone plot
-    milestone_points = find_milestone_points(model, vor, boundaries)
-    
-    for milestone_index, milestone_point in milestone_points.items():
-        plt.text(milestone_point[0], milestone_point[1], str(milestone_index), 
-                 color="lightgrey", fontsize="x-small")
-    """
+            #plt.text(point[0], point[1], index_str, weight="bold")
     
     return fig, ax, points
 
-def plot_anchors(model, plot_dir, iteration, trajectory_values, boundaries, 
+def plot_anchors(model, plot_dir, iteration, anchor_values, trajectory_values, boundaries, 
                  title, x_coordinate_title, y_coordinate_title, 
                  omit_iter_label=True, dpi=200, file_base="vt", 
                  draw_string=False, fill_values=None, edge_dictionary=None,
                  edge_labels=True, colorbar_label="Energy (kcal/mol)"):
-    fig, ax, points = plot_anchor_voronoi_tesselation(model, boundaries, fill_values, colorbar_label=colorbar_label)
+    fig, ax, points = plot_anchor_voronoi_tesselation(
+        model, boundaries, fill_values, colorbar_label=colorbar_label, 
+        anchor_values=anchor_values)
     min_x = boundaries[0]
     max_x = boundaries[1]
     min_y = boundaries[2]
@@ -393,14 +395,25 @@ def plot_anchors(model, plot_dir, iteration, trajectory_values, boundaries,
         bounds_y = np.linspace(min_y, max_y, landscape_resolution)
         X,Y = np.meshgrid(bounds_x, bounds_y)
         Z = np.zeros((landscape_resolution, landscape_resolution))
+        min_Z = np.min(Z) # 0.0
         for i, x1 in enumerate(bounds_x):
             for j, y1 in enumerate(bounds_y):
                 # fill out landscape here
-                Z[j,i] = eval(potential_energy_expression)
+                Z[j,i] = eval(potential_energy_expression) - min_Z
                 if Z[j,i] > max_Z:
                     Z[j,i] = max_Z
         
-        p = ax.pcolor(X, Y, Z, cmap=plt.cm.jet, vmin=Z.min(), vmax=Z.max())
+        # Old way of plotting toy potential energy
+        #p = ax.pcolor(X, Y, Z, cmap=plt.cm.jet, vmin=Z.min(), vmax=Z.max())
+        
+        colors = [(0, "yellow"), (1, "red")]
+        n_bins = 100
+        cmap_name = "yellow_to_red"
+        custom_cmap = LinearSegmentedColormap.from_list(cmap_name, colors, N=n_bins)
+        fig.set_size_inches(10.0, 8.0)
+        p = ax.contourf(X, Y, Z, levels=10, cmap=custom_cmap)
+        contour_lines = ax.contour(X, Y, Z, levels=100, colors='black', 
+                                   linewidths=0.5, linestyles='dashed')
         
         cbar = plt.colorbar(p)
         cbar.set_label("Energy (kcal/mol)")
@@ -413,17 +426,21 @@ def plot_anchors(model, plot_dir, iteration, trajectory_values, boundaries,
     ax.set_ylabel(y_coordinate_title)
     
     # Add trajectory points
+    """ # commented for debug
     for alpha in trajectory_values:
         if model.anchors[alpha].bulkstate:
             continue
         for point in trajectory_values[alpha]:
             circle = plt.Circle(point, TRAJ_POINT_RADIUS, color=my_color, zorder=2.5, alpha=0.5)
             ax.add_patch(circle)
-            
+    """
+    
     # Add lines to make string
     if draw_string:
         points_array = np.array(points).T
-        plt.plot(points_array[0], points_array[1], "o", linestyle="-", linewidth=2)
+        #plt.plot(points_array[0], points_array[1], "o", linestyle="-", linewidth=2)
+        plt.plot(points_array[0], points_array[1], "ko", linestyle="--", 
+                 linewidth=2, color="r", markeredgecolor="k", markerfacecolor="k")
     
     # Add arrows showing connections between anchors
     if edge_dictionary is not None:
@@ -488,8 +505,8 @@ def plot_anchors(model, plot_dir, iteration, trajectory_values, boundaries,
          
         if edge_labels:
             my_draw_networkx_edge_labels(
-                G, pos, ax=ax, edge_labels=edge_label_values, rotate=False, label_pos=0.7, 
-                font_color="black", font_size=3, rad=0.5)
+                G, pos, ax=ax, edge_labels=edge_label_values, rotate=False, 
+                label_pos=0.7, font_color="black", font_size=3, rad=0.5)
     
     if not omit_iter_label:
         # Add iteration label in upper corner
@@ -530,7 +547,7 @@ def plot_milestones(model, plot_dir, iteration, boundaries,
     milestone_labels = sorted(milestone_points.keys())
     G.add_nodes_from(milestone_labels)
     if fill_values is None:
-        node_color = "grey"
+        node_color = "black"
     else:
         fill_values_normalized = (fill_values-np.min(fill_values))\
             /(np.max(fill_values)-np.min(fill_values))
@@ -623,7 +640,7 @@ def auto_boundary_by_anchor_values(model, boundaries=None, traj_values=None):
         else:
             point_values += traj_values[0]
         boundaries = make_boundaries(point_values)
-    return boundaries, traj_values, point_values
+    return boundaries, traj_values
 
 def make_model_plots(model, plot_dir=None,
                     x_coordinate_title="X-Coordinate", 
@@ -631,10 +648,10 @@ def make_model_plots(model, plot_dir=None,
                     dpi=100, boundaries=None, traj_values=None, base_name="vt",
                     draw_string=False, anchor_fill_values=None, 
                     milestone_fill_values=None):
-    boundaries, traj_values, point_values = auto_boundary_by_anchor_values(
+    boundaries, traj_values = auto_boundary_by_anchor_values(
         model, boundaries, traj_values)
     plot_anchors(
-        model, plot_dir, None, traj_values, boundaries, 
+        model, plot_dir, None, None, traj_values, boundaries, 
         "Anchor Voronoi Tesselation", x_coordinate_title, y_coordinate_title, omit_iter_label, dpi, 
         base_name, draw_string, fill_values=anchor_fill_values)
     
@@ -645,7 +662,7 @@ def make_model_plots(model, plot_dir=None,
             edge_dictionary[key] = 1.0
             
     plot_anchors(
-        model, plot_dir, None, traj_values, boundaries, 
+        model, plot_dir, None, None, traj_values, boundaries, 
         "Connections between Anchors", x_coordinate_title, y_coordinate_title, omit_iter_label, dpi, 
         base_name+"_edges", draw_string, fill_values=anchor_fill_values, 
         edge_dictionary=edge_dictionary, edge_labels=False)
