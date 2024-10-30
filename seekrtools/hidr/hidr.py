@@ -302,6 +302,7 @@ def hidr(model, destination, pdb_files=[], toy_coordinates=None, dry_run=False,
                 model, anchor_index, settling_steps, skip_minimization=True, 
                 restraint_force_constant=restraint_force_constant, 
                 equilibrated_name=settled_final_filename, 
+                num_equil_frames=settling_frames,
                 trajectory_name=settled_traj_filename,
                 assign_trajectory_to_model=True)
             hidr_base.save_new_model(model, save_old_model=False)

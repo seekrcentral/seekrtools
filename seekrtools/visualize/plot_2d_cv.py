@@ -404,8 +404,10 @@ def plot_anchors(model, plot_dir, iteration, anchor_values, trajectory_values, b
                     Z[j,i] = max_Z
         
         # Old way of plotting toy potential energy
-        #p = ax.pcolor(X, Y, Z, cmap=plt.cm.jet, vmin=Z.min(), vmax=Z.max())
+        p = ax.pcolor(X, Y, Z, cmap=plt.cm.jet, vmin=Z.min(), vmax=Z.max())
         
+        # Anand's coloring
+        """
         colors = [(0, "yellow"), (1, "red")]
         n_bins = 100
         cmap_name = "yellow_to_red"
@@ -414,7 +416,7 @@ def plot_anchors(model, plot_dir, iteration, anchor_values, trajectory_values, b
         p = ax.contourf(X, Y, Z, levels=10, cmap=custom_cmap)
         contour_lines = ax.contour(X, Y, Z, levels=100, colors='black', 
                                    linewidths=0.5, linestyles='dashed')
-        
+        """
         cbar = plt.colorbar(p)
         cbar.set_label("Energy (kcal/mol)")
     

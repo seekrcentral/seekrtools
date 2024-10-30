@@ -59,13 +59,13 @@ the anchor directories.
 Running HIDR on the new Model using MetaD
 -----------------------------------------
 
-We will use HIDR's steered molecular dynamics (SMD) functions to slowly pull
+We will use HIDR's metadynamics (metaD) functions to slowly pull
 the system into every anchor and save the structures for later SEEKR2
 calculations.
 
 .. note::
-  HIDR can use other methods besides SMD to populate starting structures,
-  including RAMD and ratcheting. Consult the HIDR documentation as well as
+  HIDR can use other methods besides metaD to populate starting structures,
+  including SMD, RAMD, and ratcheting. Consult the HIDR documentation as well as
   other Seekrtools tutorials to see how to use these other methods if so
   desired. (Tutorials are still be under construction at the time of writing).
 
