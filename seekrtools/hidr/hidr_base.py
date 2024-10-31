@@ -33,7 +33,7 @@ RAMD_TRAJ_NAME = "hidr_traj_ramd.dcd"
 METADYN_NAME = "hidr_metadyn_at_{}_{}.pdb"
 METADYN_TRAJ_NAME = "hidr_traj_metadyn.dcd"
 SETTLED_FINAL_STRUCT_NAME = "hidr_settled_at_{}.pdb"
-SETTLED_TRAJ_NAME = "hidr_traj_settled_at_{}.dcd"
+SETTLED_TRAJ_NAME = "hidr_traj_settled_at_{}.pdb"
 
 def find_anchors_with_starting_structure(model):
     """

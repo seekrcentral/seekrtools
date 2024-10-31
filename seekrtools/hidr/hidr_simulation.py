@@ -200,7 +200,8 @@ def add_simulation(sim_openmm, model, topology, positions, box_vectors,
 def handle_reporters(model, anchor, sim_openmm, trajectory_reporter_interval, 
                      energy_reporter_interval, 
                      traj_filename_base=EQUILIBRATED_TRAJ_NAME, 
-                     smd_dcd_filename=None, smd_dcd_interval=None):
+                     smd_dcd_filename=None, smd_dcd_interval=None,
+                     trajectory_format="dcd"):
     """
     If relevant, add the necessary state and trajectory reporters to
     the simulation object.
@@ -225,8 +226,14 @@ def handle_reporters(model, anchor, sim_openmm, trajectory_reporter_interval,
             append = True
         else:
             append = False
-        simulation.reporters.append(openmm_app.DCDReporter(
-            smd_dcd_filename, smd_dcd_interval, append))
+        if trajectory_format == "dcd":
+            simulation.reporters.append(openmm_app.DCDReporter(
+                smd_dcd_filename, smd_dcd_interval, append))
+        elif trajectory_format == "pdb":
+            simulation.reporters.append(openmm_app.PDBReporter(
+                smd_dcd_filename, smd_dcd_interval, append))
+        else:
+            raise Exception(f"Trajectory format not available: {trajector_format}")
         
     return
 
@@ -571,7 +578,8 @@ def run_min_equil_anchor(model, anchor_index, equilibration_steps,
                          equilibrated_name=EQUILIBRATED_NAME, 
                          trajectory_name=EQUILIBRATED_TRAJ_NAME,
                          num_equil_frames=NUM_EQUIL_FRAMES,
-                         assign_trajectory_to_model=False):
+                         assign_trajectory_to_model=False,
+                         trajectory_format="dcd"):
     """
     Run minimizations and equilibrations for a given anchor.
     
@@ -613,7 +621,8 @@ def run_min_equil_anchor(model, anchor_index, equilibration_steps,
                    skip_minimization)
     handle_reporters(model, anchor, sim_openmm, trajectory_reporter_interval, 
                      energy_reporter_interval, 
-                     traj_filename_base=trajectory_name)
+                     traj_filename_base=trajectory_name, 
+                     trajectory_format=trajectory_format)
     
     output_pdb_file = os.path.join(
         model.anchor_rootdir, anchor.directory, anchor.building_directory,
