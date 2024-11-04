@@ -206,11 +206,19 @@ def handle_reporters(model, anchor, sim_openmm, trajectory_reporter_interval,
     If relevant, add the necessary state and trajectory reporters to
     the simulation object.
     """
+    print("trajectory_format:", trajectory_format)
+    print("smd_dcd_filename:", smd_dcd_filename)
     directory = os.path.join(
         model.anchor_rootdir, anchor.directory, anchor.building_directory)
     traj_filename = os.path.join(directory, traj_filename_base)
     simulation = sim_openmm.simulation
-    traj_reporter = sim_openmm.traj_reporter
+    if trajectory_format == "dcd":
+        traj_reporter = sim_openmm.traj_reporter
+    elif trajectory_format == "pdb":
+        traj_reporter = openmm_app.PDBReporter
+    else:
+            raise Exception(f"Trajectory format not available: {trajectory_format}")
+        
     if trajectory_reporter_interval is not None:
         simulation.reporters.append(traj_reporter(
             traj_filename, trajectory_reporter_interval))
@@ -233,7 +241,7 @@ def handle_reporters(model, anchor, sim_openmm, trajectory_reporter_interval,
             simulation.reporters.append(openmm_app.PDBReporter(
                 smd_dcd_filename, smd_dcd_interval, append))
         else:
-            raise Exception(f"Trajectory format not available: {trajector_format}")
+            raise Exception(f"Trajectory format not available: {trajectory_format}")
         
     return
 
