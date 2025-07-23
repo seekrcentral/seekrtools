@@ -36,7 +36,7 @@ def make_analyze_plots(model, analysis, plot_dir=None,
     
     
     plot_2d_cv.plot_anchors(
-        model, plot_dir, None, traj_values, boundaries, 
+        model, plot_dir, None, None, traj_values, boundaries, 
         "Anchor Free Energies", x_coordinate_title, y_coordinate_title, omit_iter_label, dpi, 
         base_name, draw_string, fill_values=anchor_free_energies, 
         colorbar_label="Energy (kcal/mol)")
@@ -54,20 +54,20 @@ def make_analyze_plots(model, analysis, plot_dir=None,
                 log_times.append(min_time)
     
     plot_2d_cv.plot_anchors(
-        model, plot_dir, None, traj_values, boundaries, 
+        model, plot_dir, None, None, traj_values, boundaries, 
         "Time Between Bounces For Each Anchor", x_coordinate_title, y_coordinate_title, omit_iter_label, dpi, 
         base_name+"_time_alpha", draw_string, fill_values=log_times, 
         colorbar_label="$\log_{10}(time_{\\alpha}/ps)$")
     
     plot_2d_cv.plot_anchors(
-        model, plot_dir, None, traj_values, boundaries, 
+        model, plot_dir, None, None, traj_values, boundaries, 
         "Anchor $N_{\\alpha,\\beta}$", x_coordinate_title, y_coordinate_title, 
         omit_iter_label, dpi, 
         base_name+"_N_alpha_beta", draw_string, fill_values=None, 
         edge_dictionary=analysis.main_data_sample.N_alpha_beta, edge_labels=True)
     
     plot_2d_cv.plot_anchors(
-        model, plot_dir, None, traj_values, boundaries, 
+        model, plot_dir, None, None, traj_values, boundaries, 
         "Anchor $k_{\\alpha,\\beta}$", x_coordinate_title, y_coordinate_title, 
         omit_iter_label, dpi, 
         base_name+"_k_alpha_beta", draw_string, fill_values=None, 

@@ -66,7 +66,7 @@ from seekrtools.hidr.hidr_base import METADYN_TRAJ_NAME
 #from seekrtools.hidr.hidr_base import SETTLED_TRAJ_NAME
 DEFAULT_METADYN_NPOINTS = 181
 DEFAULT_METADYN_SIGMA = 0.05
-MAX_METADYN_STEPS = 2000000
+MAX_METADYN_STEPS = 20000000
 METADYN_BIAS_DIR_NAME = "metadyn_bias_dir"
 RESTRAINT_FORCE_CONSTANT = 100.0 * unit.kilocalories_per_mole / unit.angstrom**2
 kcal_per_mol = unit.kilocalories / unit.mole
@@ -200,16 +200,25 @@ def add_simulation(sim_openmm, model, topology, positions, box_vectors,
 def handle_reporters(model, anchor, sim_openmm, trajectory_reporter_interval, 
                      energy_reporter_interval, 
                      traj_filename_base=EQUILIBRATED_TRAJ_NAME, 
-                     smd_dcd_filename=None, smd_dcd_interval=None):
+                     smd_dcd_filename=None, smd_dcd_interval=None,
+                     trajectory_format="dcd"):
     """
     If relevant, add the necessary state and trajectory reporters to
     the simulation object.
     """
+    print("trajectory_format:", trajectory_format)
+    print("smd_dcd_filename:", smd_dcd_filename)
     directory = os.path.join(
         model.anchor_rootdir, anchor.directory, anchor.building_directory)
     traj_filename = os.path.join(directory, traj_filename_base)
     simulation = sim_openmm.simulation
-    traj_reporter = sim_openmm.traj_reporter
+    if trajectory_format == "dcd":
+        traj_reporter = sim_openmm.traj_reporter
+    elif trajectory_format == "pdb":
+        traj_reporter = openmm_app.PDBReporter
+    else:
+            raise Exception(f"Trajectory format not available: {trajectory_format}")
+        
     if trajectory_reporter_interval is not None:
         simulation.reporters.append(traj_reporter(
             traj_filename, trajectory_reporter_interval))
@@ -225,8 +234,14 @@ def handle_reporters(model, anchor, sim_openmm, trajectory_reporter_interval,
             append = True
         else:
             append = False
-        simulation.reporters.append(openmm_app.DCDReporter(
-            smd_dcd_filename, smd_dcd_interval, append))
+        if trajectory_format == "dcd":
+            simulation.reporters.append(openmm_app.DCDReporter(
+                smd_dcd_filename, smd_dcd_interval, append))
+        elif trajectory_format == "pdb":
+            simulation.reporters.append(openmm_app.PDBReporter(
+                smd_dcd_filename, smd_dcd_interval, append))
+        else:
+            raise Exception(f"Trajectory format not available: {trajectory_format}")
         
     return
 
@@ -571,7 +586,8 @@ def run_min_equil_anchor(model, anchor_index, equilibration_steps,
                          equilibrated_name=EQUILIBRATED_NAME, 
                          trajectory_name=EQUILIBRATED_TRAJ_NAME,
                          num_equil_frames=NUM_EQUIL_FRAMES,
-                         assign_trajectory_to_model=False):
+                         assign_trajectory_to_model=False,
+                         trajectory_format="dcd"):
     """
     Run minimizations and equilibrations for a given anchor.
     
@@ -613,7 +629,8 @@ def run_min_equil_anchor(model, anchor_index, equilibration_steps,
                    skip_minimization)
     handle_reporters(model, anchor, sim_openmm, trajectory_reporter_interval, 
                      energy_reporter_interval, 
-                     traj_filename_base=trajectory_name)
+                     traj_filename_base=trajectory_name, 
+                     trajectory_format=trajectory_format)
     
     output_pdb_file = os.path.join(
         model.anchor_rootdir, anchor.directory, anchor.building_directory,

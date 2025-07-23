@@ -33,7 +33,7 @@ RAMD_TRAJ_NAME = "hidr_traj_ramd.dcd"
 METADYN_NAME = "hidr_metadyn_at_{}_{}.pdb"
 METADYN_TRAJ_NAME = "hidr_traj_metadyn.dcd"
 SETTLED_FINAL_STRUCT_NAME = "hidr_settled_at_{}.pdb"
-SETTLED_TRAJ_NAME = "hidr_traj_settled_at_{}.dcd"
+SETTLED_TRAJ_NAME = "hidr_traj_settled_at_{}.pdb"
 
 def find_anchors_with_starting_structure(model):
     """
@@ -275,30 +275,7 @@ def save_new_model(model, save_old_model=True):
         The unfilled Seekr2 Model object.
         
     """
-    if model.openmm_settings.cuda_platform_settings is not None:
-        cuda_device_index = model.openmm_settings.cuda_platform_settings\
-            .cuda_device_index
-        model.openmm_settings.cuda_platform_settings.cuda_device_index = "0"
-        
-    model_path = os.path.join(model.anchor_rootdir, "model.xml")
-    if os.path.exists(model_path) and save_old_model:
-        # This is expected, because this old model was loaded
-        hidr_model_glob = os.path.join(model.anchor_rootdir, HIDR_MODEL_GLOB)
-        num_globs = len(glob.glob(hidr_model_glob))
-        new_pre_hidr_model_filename = HIDR_MODEL_BASE.format(num_globs)
-        new_pre_hidr_model_path = os.path.join(model.anchor_rootdir, 
-                                               new_pre_hidr_model_filename)
-        print("Renaming model.xml to {}".format(new_pre_hidr_model_filename))
-        copyfile(model_path, new_pre_hidr_model_path)
-        
-    print("Saving new model.xml")
-    old_rootdir = model.anchor_rootdir
-    model.anchor_rootdir = "."
-    base.save_model(model, model_path)
-    model.anchor_rootdir = old_rootdir
-    if model.openmm_settings.cuda_platform_settings is not None:
-        model.openmm_settings.cuda_platform_settings.cuda_device_index\
-            = cuda_device_index
+    base.save_new_model(model, HIDR_MODEL_GLOB, HIDR_MODEL_BASE, save_old_model)
     return
 
 def change_anchor_pdb_filename(anchor, new_pdb_filename):

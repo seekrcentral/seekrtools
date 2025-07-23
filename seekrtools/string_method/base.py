@@ -142,20 +142,10 @@ def save_new_model(model, save_old_model=True, overwrite_log=False):
         The unfilled Seekr2 Model object.
         
     """
-    model_path = os.path.join(model.anchor_rootdir, "model.xml")
     string_model_glob = os.path.join(
         model.anchor_rootdir, STRING_MODEL_GLOB)
     num_globs = len(glob.glob(string_model_glob))
     log_filename = os.path.join(model.anchor_rootdir, STRING_LOG_FILENAME.format(num_globs))
-    if save_old_model:
-        # This is expected, because this old model was loaded
-        if os.path.exists(model_path):
-            new_pre_string_model_filename = STRING_MODEL_BASE.format(num_globs)
-            new_pre_string_model_path = os.path.join(model.anchor_rootdir, 
-                                                     new_pre_string_model_filename)
-            print("Renaming model.xml to {}".format(new_pre_string_model_filename))
-            copyfile(model_path, new_pre_string_model_path)
-    
     if overwrite_log:
         # Then see if an old log file exists below the correct number, and 
         # if so, save it. But delete all numbered log files above the correct 
@@ -169,11 +159,8 @@ def save_new_model(model, save_old_model=True, overwrite_log=False):
                 print("deleting log file:", existing_log_file)
                 os.remove(existing_log_file)
         
-    print("Saving new model.xml")
-    old_rootdir = model.anchor_rootdir
-    model.anchor_rootdir = "."
-    base.save_model(model, model_path)
-    model.anchor_rootdir = old_rootdir
+    base.save_new_model(model, STRING_MODEL_GLOB, STRING_MODEL_BASE, 
+                        save_old_model)
     return log_filename
 
 def define_new_starting_states(model, voronoi_cv, anchor_cv_values, 
