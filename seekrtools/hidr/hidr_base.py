@@ -388,10 +388,14 @@ def assign_pdb_file_to_model(model, pdb_file, skip_checks=False, dry_run=False):
         my_sim_openmm = mmvt_sim_openmm.create_sim_openmm(
             model, anchor, output_file, use_only_reference=True)
         context = my_sim_openmm.simulation.context
-        positions_obj = openmm_app.PDBFile(pdb_file)
-        positions = positions_obj.getPositions()
-        state = context.getState(getPositions = True, enforcePeriodicBox = True)
+        #positions_obj = openmm_app.PDBFile(pdb_file)
+        #positions = positions_obj.getPositions()
+        mdtraj_pdb = mdtraj.load(pdb_file)
+        positions = mdtraj_pdb.xyz[0] * unit.nanometers
+        state = context.getState(getPositions=True, enforcePeriodicBox=True)
         context_positions = state.getPositions()
+        #print("len(context_positions):", len(context_positions))
+        #print("len(positions):", len(positions))
         assert len(context_positions) == len(positions), \
             "Mismatch between atom numbers in anchor parameter file and "\
             "provided pdb file {}. Incorrect pdb file?".format(pdb_file)

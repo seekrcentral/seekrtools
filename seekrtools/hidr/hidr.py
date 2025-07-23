@@ -444,7 +444,7 @@ if __name__ == "__main__":
         metavar="[c1, c2, ...]", help="Enter the CV indices to ignore when "\
         "making forces, also applies to sub-cvs for MMVT. Default: None. ")
     argparser.add_argument(
-        "-w", "--metadyn_sigma", dest="metadyn_sigma", default=None,
+        "-w", "--metadyn_sigma", dest="metadyn_sigma", default=None, type=float,
         metavar="w or [w1, w2, ...]", help="The standard deviations of the "\
         "Gaussians added to the bias in metadynamics for each CV. Can be "\
         "a float or a list of floats. Default: 0.05 nm. ")
