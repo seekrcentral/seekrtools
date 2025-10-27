@@ -1705,7 +1705,7 @@ def run_Metadyn_simulation(model, source_anchor_index,
         pi_fig, ax = plt.subplots()
         plt.plot(x, dG)
         plt.xticks(anchor_values, anchor_values, rotation=90)
-        plt.ylabel("Metadynamics \u0394G (kJ/mol)")
+        plt.ylabel("Metadynamics \u0394G (kcal/mol)")
         plt.xlabel("anchor value")
         plt.title("Metadynamics Free Energy Profile")
         plt.tight_layout()
