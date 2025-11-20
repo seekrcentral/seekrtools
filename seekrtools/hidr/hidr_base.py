@@ -401,7 +401,12 @@ def assign_pdb_file_to_model(model, pdb_file, skip_checks=False, dry_run=False):
             new_pdb_filename = os.path.join(anchor_building_dir, 
                                             pdb_base)
             if not dry_run:
-                copyfile(os.path.expanduser(pdb_file), new_pdb_filename)
+                if not os.path.exists(new_pdb_filename):
+                    copyfile(os.path.expanduser(pdb_file), new_pdb_filename)
+                else:
+                    if not os.path.samefile(os.path.expanduser(pdb_file), 
+                                            new_pdb_filename):
+                        copyfile(os.path.expanduser(pdb_file), new_pdb_filename)
             print("Assigning pdb file {} to anchor {}".format(
                 pdb_file, anchor.index))
             change_anchor_pdb_filename(anchor, pdb_base)
