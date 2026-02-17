@@ -1268,7 +1268,7 @@ def run_Metadyn_simulation(model, source_anchor_index,
     sim_openmm = HIDR_sim_openmm()
     system, topology, start_positions, box_vectors, num_frames \
         = common_sim_openmm.create_openmm_system(sim_openmm, model, 
-                                                 source_anchor)    
+                                                 source_anchor)
     sim_openmm.system = system
     time_step = add_integrator(sim_openmm, model)
     common_sim_openmm.add_platform(sim_openmm, model)
