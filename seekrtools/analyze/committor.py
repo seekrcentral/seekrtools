@@ -90,8 +90,8 @@ if __name__ == "__main__":
         model, seekr2_common_analyze.DEFAULT_IMAGE_DIR)
     committor_probabilities, committor_probabilities_error = committor(model)
     closest_to_halfway_index = find_milestone_closest_to_halfway(model, committor_probabilities)
-    print("Committor probabilities by milestone: ", committor_probabilities)
-    print("Committor probability errors by milestone: ", committor_probabilities_error)
+    #print("Committor probabilities by milestone: ", committor_probabilities)
+    #print("Committor probability errors by milestone: ", committor_probabilities_error)
     print("Milestone index closest to halfway: ", closest_to_halfway_index)
     plot_committor(model, committor_probabilities, committor_probabilities_error,
                    image_directory)

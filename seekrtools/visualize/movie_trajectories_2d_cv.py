@@ -49,28 +49,29 @@ def make_traj_cv_values(model):
         if anchor.bulkstate:
             anchor_cv_values.append([])
             continue
+        building_directory = os.path.join(
+            model.anchor_rootdir, anchor.directory, 
+            anchor.building_directory)
+        prod_directory = os.path.join(
+            model.anchor_rootdir, anchor.directory, 
+            anchor.production_directory)
+        mmvt_traj_basename = mmvt_cv_base.OPENMMVT_BASENAME+"*.dcd"
+        mmvt_traj_glob = os.path.join(prod_directory, 
+                                        mmvt_traj_basename)
+        mmvt_traj_filenames = base.order_files_numerically(glob.glob(mmvt_traj_glob))
+        if len(mmvt_traj_filenames) == 0:
+            anchor_cv_values.append([])
+            continue
         
         if anchor.__class__.__name__ in ["MMVT_toy_anchor", "Elber_toy_anchor"]:
             top_file_name = os.path.join(rootdir, anchor.directory, 
                                     anchor.building_directory, "toy.pdb")
             
         else:
-            building_directory = os.path.join(
-                model.anchor_rootdir, anchor.directory, 
-                anchor.building_directory)
-            prod_directory = os.path.join(
-                model.anchor_rootdir, anchor.directory, 
-                anchor.production_directory)
             if anchor.amber_params is not None:
                 top_file_name = os.path.join(
                     building_directory, anchor.amber_params.prmtop_filename)
-                mmvt_traj_basename = mmvt_cv_base.OPENMMVT_BASENAME+"*.dcd"
-                mmvt_traj_glob = os.path.join(prod_directory, 
-                                              mmvt_traj_basename)
-                mmvt_traj_filenames = glob.glob(mmvt_traj_glob)
-                if len(mmvt_traj_filenames) == 0:
-                    anchor_cv_values.append([])
-                    continue
+                
             else:
                 raise Exception("Only Amber inputs implemented at this time.")
     
