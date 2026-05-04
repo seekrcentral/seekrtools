@@ -14,7 +14,7 @@ import seekr2.modules.common_base as base
 from seekr2.modules.common_analyze import DEFAULT_IMAGE_DIR
 import seekr2.analyze as analyze
 
-import chapman_kolmogorov_test
+from . import chapman_kolmogorov_test
 
 IMPLIED_TIME_DIR = "implied_timescales"
 
